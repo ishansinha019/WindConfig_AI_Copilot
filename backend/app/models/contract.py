@@ -1,12 +1,19 @@
+from __future__ import annotations
+
 import enum
 from datetime import date
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy import Date, Enum, Numeric, String
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin
+
+if TYPE_CHECKING:
+    from app.models.configuration import AlarmCategory, ProductionPeriod
+    from app.models.wind_farm import WindFarm
 
 
 class ContractStatus(str, enum.Enum):
@@ -35,3 +42,16 @@ class Contract(TimestampMixin, Base):
     start_date: Mapped[date] = mapped_column(Date, nullable=False)
     end_date: Mapped[date] = mapped_column(Date, nullable=False)
     target_availability: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False)
+
+    wind_farms: Mapped[list[WindFarm]] = relationship(
+        back_populates="contract",
+        cascade="all, delete-orphan",
+    )
+    production_periods: Mapped[list[ProductionPeriod]] = relationship(
+        back_populates="contract",
+        cascade="all, delete-orphan",
+    )
+    alarm_categories: Mapped[list[AlarmCategory]] = relationship(
+        back_populates="contract",
+        cascade="all, delete-orphan",
+    )

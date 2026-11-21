@@ -14,6 +14,15 @@ The project has a frontend shell and a database-backed backend foundation. Docke
 - Added tests for seeded contract listing, contract detail retrieval, missing contracts, and idempotent seeding.
 - Standardized persisted contract-status values with the lowercase API values: `draft`, `needs_review`, and `published`.
 
+## Database and Seed Data In Progress
+
+- Added the first connected domain records: wind farms, turbine groups, turbines,
+  production periods, and alarm categories.
+- Added a second Alembic migration to create the relational tables.
+- Extended synthetic seeds with two wind farms and seven turbines.
+- Expanded the contract-detail response with the related operational data.
+- Updated the frontend dashboard to make the seeded data directly inspectable.
+
 ## Completed Decisions
 
 - The project will be created as a new sibling folder named `WindConfig_AI_Copilot`.

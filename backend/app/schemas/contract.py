@@ -24,10 +24,52 @@ class ContractListResponse(BaseModel):
     contracts: list[ContractSummary]
 
 
-class ContractDetail(ContractSummary):
-    """The current contract representation used by the detail endpoint.
+class TurbineGroupSummary(BaseModel):
+    id: UUID
+    name: str
 
-    This deliberately extends the list summary so new configuration fields can
-    be added later without changing the contract-list response.
-    """
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TurbineSummary(BaseModel):
+    id: UUID
+    code: str
+    model_name: str
+    rated_power_mw: float = Field(gt=0)
+    turbine_group: TurbineGroupSummary | None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class WindFarmDetail(BaseModel):
+    id: UUID
+    name: str
+    region: str
+    turbines: list[TurbineSummary]
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ProductionPeriodSummary(BaseModel):
+    id: UUID
+    name: str
+    start_date: date
+    end_date: date
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AlarmCategorySummary(BaseModel):
+    id: UUID
+    code: str
+    name: str
+    is_required: bool
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ContractDetail(ContractSummary):
+    wind_farms: list[WindFarmDetail]
+    production_periods: list[ProductionPeriodSummary]
+    alarm_categories: list[AlarmCategorySummary]
 

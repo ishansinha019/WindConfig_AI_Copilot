@@ -18,7 +18,13 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    contract_status = sa.Enum("draft", "needs_review", "published", name="contract_status")
+    contract_status = postgresql.ENUM(
+        "draft",
+        "needs_review",
+        "published",
+        name="contract_status",
+        create_type=False,
+    )
     contract_status.create(op.get_bind(), checkfirst=True)
 
     op.create_table(
@@ -40,4 +46,4 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_table("contracts")
-    sa.Enum(name="contract_status").drop(op.get_bind(), checkfirst=True)
+    postgresql.ENUM(name="contract_status").drop(op.get_bind(), checkfirst=True)

@@ -68,6 +68,10 @@ Success criteria:
 - API can list contracts and contract details.
 - Seed data is clearly synthetic and domain-inspired.
 
+Current scope: contracts now have seeded wind farms, turbine groups, turbines,
+production periods, and alarm categories. Availability configurations and draft
+snapshots remain intentionally deferred to the configuration-workflow milestones.
+
 ## Milestone 4: Frontend Dashboard
 
 Purpose: make the product feel like a real enterprise workflow, not a generic demo.

@@ -1,9 +1,11 @@
 from uuid import UUID
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models.contract import Contract
+from app.models.turbine import Turbine
+from app.models.wind_farm import WindFarm
 from app.schemas.contract import ContractDetail, ContractSummary
 
 
@@ -13,7 +15,18 @@ def list_contracts(db: Session) -> list[ContractSummary]:
 
 
 def get_contract(db: Session, contract_id: UUID) -> ContractDetail | None:
-    contract = db.get(Contract, contract_id)
+    statement = (
+        select(Contract)
+        .where(Contract.id == contract_id)
+        .options(
+            selectinload(Contract.wind_farms)
+            .selectinload(WindFarm.turbines)
+            .selectinload(Turbine.turbine_group),
+            selectinload(Contract.production_periods),
+            selectinload(Contract.alarm_categories),
+        )
+    )
+    contract = db.scalar(statement)
     if contract is None:
         return None
 
