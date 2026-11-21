@@ -2,7 +2,17 @@
 
 ## Current Status
 
-Milestone 1 project setup has been scaffolded and verified. The project now has a frontend shell, backend health endpoint, Docker Compose file, environment examples, setup README, and working local container stack.
+The project has a frontend shell and a database-backed backend foundation. Docker Compose now applies the contracts migration, seeds two synthetic contracts, and starts the API and frontend locally.
+
+## Backend and Database Foundation Completed
+
+- Connected the local project folder to the `ishansinha019/WindConfig_AI_Copilot` GitHub remote without overwriting local files.
+- Added automatic Alembic migration execution to the backend container startup.
+- Added idempotent synthetic contract seeding.
+- Replaced the in-memory contracts list with PostgreSQL queries.
+- Added `GET /api/v1/contracts/{contract_id}` with a clear 404 response.
+- Added tests for seeded contract listing, contract detail retrieval, missing contracts, and idempotent seeding.
+- Standardized persisted contract-status values with the lowercase API values: `draft`, `needs_review`, and `published`.
 
 ## Completed Decisions
 
@@ -55,13 +65,12 @@ Milestone 1 project setup has been scaffolded and verified. The project now has 
 
 ## Next Build Step
 
-Milestone 2: Backend Foundation.
+Milestone 3: Database and Seed Data.
 
 Planned tasks:
-- Begin SQLAlchemy, Alembic, database session, and API layering in Milestone 2.
-- Add backend dependency verification through Docker or local `uv`.
-- Add first database migration.
-- Add a contracts router placeholder backed by synthetic data or database models.
+- Add wind-farm, turbine, turbine-group, production-period, and alarm-category models.
+- Add migrations and synthetic seed data for those domain entities.
+- Add contract-detail data that joins the related entities.
 
 ## Commands Used
 

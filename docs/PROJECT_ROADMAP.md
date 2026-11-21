@@ -44,6 +44,10 @@ Success criteria:
 - First migration can create tables.
 - pytest can run at least one backend test.
 
+Status: completed for the contracts foundation. The API has layered routing,
+service, schema, model, session, migration, seed, and test coverage for
+contracts. Additional domain models belong to Milestone 3.
+
 ## Milestone 3: Database and Seed Data
 
 Purpose: create realistic synthetic data without using proprietary information.
