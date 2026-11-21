@@ -6,7 +6,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
-from app.models.configuration import AlarmCategory, ProductionPeriod
+from app.models.configuration import AlarmCategory, ConfigurationStatus, ConfigurationVersion, ProductionPeriod
 from app.models.contract import Contract, ContractStatus
 from app.models.turbine import Turbine
 from app.models.wind_farm import TurbineGroup, WindFarm
@@ -137,6 +137,38 @@ SYNTHETIC_ALARM_CATEGORIES = (
     alarm("4202f056-80d5-47bd-a8ee-208b913cf612", COASTAL_PLAINS_CONTRACT_ID, "MAINT", "Planned maintenance", True),
 )
 
+NORTH_RIDGE_V1_SNAPSHOT = {
+    "formula_type": "time_based_iec",
+    "formula_name": "IEC 61400-26-1 Time-based Availability",
+    "target_availability": 97.5,
+    "included_alarm_codes": ["GRID", "MAINT", "WX"],
+    "turbine_ids": [
+        "1101f056-80d5-47bd-a8ee-208b913cf612",
+        "1102f056-80d5-47bd-a8ee-208b913cf612",
+        "1103f056-80d5-47bd-a8ee-208b913cf612",
+        "1104f056-80d5-47bd-a8ee-208b913cf612",
+    ],
+    "production_period_ids": [
+        "3101f056-80d5-47bd-a8ee-208b913cf612",
+        "3102f056-80d5-47bd-a8ee-208b913cf612",
+    ],
+    "variables": {
+        "planned_maintenance_cap_hours": 120.0,
+        "grid_outage_grace_period_hours": 4.0,
+    },
+}
+
+SYNTHETIC_CONFIGURATIONS = (
+    {
+        "id": UUID("5101f056-80d5-47bd-a8ee-208b913cf612"),
+        "contract_id": NORTH_RIDGE_CONTRACT_ID,
+        "version_number": 1,
+        "status": ConfigurationStatus.DRAFT,
+        "snapshot_data": NORTH_RIDGE_V1_SNAPSHOT,
+        "checksum": ConfigurationVersion.calculate_checksum(NORTH_RIDGE_V1_SNAPSHOT),
+    },
+)
+
 
 def seed_contracts(db: Session) -> None:
     _seed_rows(db, Contract, SYNTHETIC_CONTRACTS)
@@ -157,6 +189,7 @@ def seed_database(db: Session) -> None:
     _seed_rows(db, Turbine, SYNTHETIC_TURBINES)
     _seed_rows(db, ProductionPeriod, SYNTHETIC_PRODUCTION_PERIODS)
     _seed_rows(db, AlarmCategory, SYNTHETIC_ALARM_CATEGORIES)
+    _seed_rows(db, ConfigurationVersion, SYNTHETIC_CONFIGURATIONS)
 
 
 def main() -> None:

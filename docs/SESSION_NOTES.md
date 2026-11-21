@@ -14,7 +14,19 @@ The project has a frontend shell and a database-backed backend foundation. Docke
 - Added tests for seeded contract listing, contract detail retrieval, missing contracts, and idempotent seeding.
 - Standardized persisted contract-status values with the lowercase API values: `draft`, `needs_review`, and `published`.
 
-## Database and Seed Data In Progress
+## Availability Configuration & Publish Engine Completed
+
+- Added `ConfigurationVersion` hybrid model with JSONB snapshot and relational metadata.
+- Added Alembic migration `202611220002_create_configuration_versions.py` with partial unique index `uq_published_contract_config` preventing multiple published versions per contract.
+- Built Optimistic Concurrency Control (OCC) using `base_version` to prevent lost updates under simultaneous edits.
+- Added deterministic readiness validation engine (`validate_configuration_readiness`) enforcing required alarm category inclusions, turbine fleet assignments, and SLA range boundaries before publish.
+- Enforced state machine invariants (`draft -> in_review -> published -> archived`) and strict immutability of published snapshots.
+- Implemented structural diffing endpoint (`GET /contracts/{id}/configuration/diff`) comparing alarm sets, turbine lists, and calculation variables.
+- Added 7 comprehensive failure-mode and edge-case unit/integration tests with 100% pass rate (12 tests total).
+- Updated frontend with active configuration snapshot cards, live deterministic readiness indicator, and one-click publish mutation.
+- Verified zero ESLint errors and clean TypeScript production build.
+
+## Database and Seed Data Completed
 
 - Added the first connected domain records: wind farms, turbine groups, turbines,
   production periods, and alarm categories.

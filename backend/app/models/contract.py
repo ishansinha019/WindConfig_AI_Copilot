@@ -12,7 +12,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
-    from app.models.configuration import AlarmCategory, ProductionPeriod
+    from app.models.configuration import AlarmCategory, ConfigurationVersion, ProductionPeriod
     from app.models.wind_farm import WindFarm
 
 
@@ -52,6 +52,10 @@ class Contract(TimestampMixin, Base):
         cascade="all, delete-orphan",
     )
     alarm_categories: Mapped[list[AlarmCategory]] = relationship(
+        back_populates="contract",
+        cascade="all, delete-orphan",
+    )
+    configuration_versions: Mapped[list[ConfigurationVersion]] = relationship(
         back_populates="contract",
         cascade="all, delete-orphan",
     )

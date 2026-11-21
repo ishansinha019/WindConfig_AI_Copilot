@@ -111,6 +111,8 @@ Success criteria:
 
 ## Milestone 6: Draft and Publish Workflow
 
+Status: Completed. Hybrid JSONB versioning, OCC conflict handling, deterministic readiness validation, and diffing engine are implemented, migrated in Postgres, tested with pytest, and integrated into the frontend dashboard.
+
 Purpose: show enterprise-grade state handling and traceability.
 
 Build:
