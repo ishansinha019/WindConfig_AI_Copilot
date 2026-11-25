@@ -10,28 +10,15 @@ import {
   Sliders,
   Wind,
 } from "lucide-react";
+import { Link, useParams } from "react-router-dom";
 
 import {
   getActiveConfiguration,
   getConfigurationReadiness,
   getContract,
-  getContracts,
   publishConfiguration,
   type ConfigurationStatus,
-  type ContractStatus,
 } from "../lib/api";
-
-const statusLabels: Record<ContractStatus, string> = {
-  draft: "Draft",
-  needs_review: "Needs review",
-  published: "Published",
-};
-
-const statusClasses: Record<ContractStatus, string> = {
-  draft: "bg-amber-50 text-amber-800",
-  needs_review: "bg-rose-50 text-rose-800",
-  published: "bg-emerald-50 text-emerald-800",
-};
 
 const configStatusClasses: Record<ConfigurationStatus, string> = {
   draft: "bg-amber-50 text-amber-800 border-amber-200",
@@ -40,102 +27,69 @@ const configStatusClasses: Record<ConfigurationStatus, string> = {
   archived: "bg-slate-100 text-slate-700 border-slate-200",
 };
 
-export function DashboardPage() {
-  const [selectedContractId, setSelectedContractId] = useState<string>();
+export function ContractDetailPage() {
+  const { contractId } = useParams<{ contractId: string }>();
   const [publishMessage, setPublishMessage] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
-  const contractsQuery = useQuery({ queryKey: ["contracts"], queryFn: getContracts });
-  const activeContractId = selectedContractId ?? contractsQuery.data?.[0]?.id;
-
   const detailQuery = useQuery({
-    queryKey: ["contract", activeContractId],
-    queryFn: () => getContract(activeContractId ?? ""),
-    enabled: Boolean(activeContractId),
+    queryKey: ["contract", contractId],
+    queryFn: () => getContract(contractId ?? ""),
+    enabled: Boolean(contractId),
   });
 
   const configQuery = useQuery({
-    queryKey: ["contract-config", activeContractId],
-    queryFn: () => getActiveConfiguration(activeContractId ?? ""),
-    enabled: Boolean(activeContractId),
+    queryKey: ["contract-config", contractId],
+    queryFn: () => getActiveConfiguration(contractId ?? ""),
+    enabled: Boolean(contractId),
   });
 
   const currentVersion = configQuery.data?.current_version;
 
   const readinessQuery = useQuery({
-    queryKey: ["config-readiness", activeContractId, currentVersion?.id],
-    queryFn: () => getConfigurationReadiness(activeContractId ?? "", currentVersion?.id ?? ""),
-    enabled: Boolean(activeContractId && currentVersion?.id),
+    queryKey: ["config-readiness", contractId, currentVersion?.id],
+    queryFn: () => getConfigurationReadiness(contractId ?? "", currentVersion?.id ?? ""),
+    enabled: Boolean(contractId && currentVersion?.id),
   });
 
   const publishMutation = useMutation({
-    mutationFn: () => publishConfiguration(activeContractId ?? "", currentVersion?.id ?? ""),
+    mutationFn: () => publishConfiguration(contractId ?? "", currentVersion?.id ?? ""),
     onSuccess: (publishedVersion) => {
       setPublishMessage(`Successfully published Version ${publishedVersion.version_number}!`);
       void queryClient.invalidateQueries({ queryKey: ["contracts"] });
-      void queryClient.invalidateQueries({ queryKey: ["contract", activeContractId] });
-      void queryClient.invalidateQueries({ queryKey: ["contract-config", activeContractId] });
-      void queryClient.invalidateQueries({ queryKey: ["config-readiness", activeContractId] });
+      void queryClient.invalidateQueries({ queryKey: ["contract", contractId] });
+      void queryClient.invalidateQueries({ queryKey: ["contract-config", contractId] });
+      void queryClient.invalidateQueries({ queryKey: ["config-readiness", contractId] });
     },
     onError: (err: Error) => {
       setPublishMessage(`Publish failed: ${err.message}`);
     },
   });
 
-  if (contractsQuery.isLoading) {
-    return <DashboardMessage message="Loading the synthetic contract portfolio..." />;
+  if (!contractId || detailQuery.isLoading) {
+    return <DashboardMessage message="Loading contract details..." />;
   }
 
-  if (contractsQuery.isError) {
-    return <DashboardMessage message="The contract API is unavailable. Start the backend and refresh." />;
+  if (detailQuery.isError || !detailQuery.data) {
+    return <DashboardMessage message="Could not load the selected contract details." />;
   }
 
   return (
     <section className="space-y-6">
-      <div className="rounded-lg border border-border bg-white p-6">
-        <p className="text-sm font-semibold text-primary">Synthetic operations portfolio</p>
-        <h2 className="mt-2 text-xl font-semibold text-slate-950">Contract configuration & availability engine</h2>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-          Inspect seeded wind farm assets, seasonal production periods, alarm category compliance,
-          and deterministic availability configuration versions with immutable publish workflows.
-        </p>
+      <div className="space-y-2">
+        <Link to="/" className="text-sm font-medium text-primary hover:underline">
+          ← All contracts
+        </Link>
+        <div>
+          <p className="text-sm font-semibold text-primary">Contract overview</p>
+          <h1 className="mt-1 text-2xl font-semibold text-foreground">{detailQuery.data.name}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {detailQuery.data.customer_name} · {detailQuery.data.wind_farm_name}
+          </p>
+        </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        {contractsQuery.data?.map((contract) => (
-          <button
-            key={contract.id}
-            type="button"
-            onClick={() => {
-              setSelectedContractId(contract.id);
-              setPublishMessage(null);
-            }}
-            className={`rounded-lg border bg-white p-5 text-left transition hover:border-primary ${
-              activeContractId === contract.id ? "border-primary ring-1 ring-primary" : "border-border"
-            }`}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h3 className="font-semibold text-slate-950">{contract.name}</h3>
-                <p className="mt-1 text-sm text-slate-600">{contract.customer_name}</p>
-              </div>
-              <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusClasses[contract.status]}`}>
-                {statusLabels[contract.status]}
-              </span>
-            </div>
-            <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
-              <Metric label="Wind farm" value={contract.wind_farm_name} />
-              <Metric label="Target" value={`${contract.target_availability}%`} />
-            </div>
-          </button>
-        ))}
-      </div>
-
-      {detailQuery.isLoading && <DashboardMessage message="Loading contract details..." />}
-      {detailQuery.isError && <DashboardMessage message="Could not load the selected contract details." />}
-
-      {detailQuery.data && (
-        <div className="space-y-6">
+      <div className="space-y-6">
           {/* Active Configuration Snapshot & Deterministic Readiness Card */}
           <article className="rounded-lg border border-border bg-white p-5 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
@@ -312,23 +266,13 @@ export function DashboardPage() {
               </article>
             </div>
           </div>
-        </div>
-      )}
+      </div>
     </section>
   );
 }
 
 function DashboardMessage({ message }: { message: string }) {
   return <div className="rounded-lg border border-border bg-white p-6 text-sm text-slate-600">{message}</div>;
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</div>
-      <div className="mt-1 truncate font-medium text-slate-900">{value}</div>
-    </div>
-  );
 }
 
 function SectionTitle({ icon: Icon, title }: { icon: typeof Wind; title: string }) {

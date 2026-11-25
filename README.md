@@ -161,6 +161,7 @@ added milestone by milestone.
 ## Documentation
 
 Start here:
+- `docs/AVAILABILITY_CONFIG_MILESTONES.md` (active work plan and agent handoff)
 - `docs/PROJECT_ROADMAP.md`
 - `docs/ARCHITECTURE.md`
 - `docs/LEARNING_ROADMAP.md`

@@ -126,9 +126,11 @@ Recommended defaults:
 
 If this chat context is compacted or a new thread is started, read this file first, then read:
 
-1. `docs/PROJECT_ROADMAP.md`
-2. `docs/ARCHITECTURE.md`
-3. `docs/LEARNING_ROADMAP.md`
-4. `docs/INTERVIEW_STORY.md`
+1. `docs/AVAILABILITY_CONFIG_MILESTONES.md` (active work plan — start here)
+2. `docs/PROJECT_ROADMAP.md`
+3. `docs/ARCHITECTURE.md`
+4. `docs/LEARNING_ROADMAP.md`
+5. `docs/INTERVIEW_STORY.md`
 
-Then continue with Milestone 1.
+Then continue with the first unchecked milestone in
+`docs/AVAILABILITY_CONFIG_MILESTONES.md` and record progress in its Progress Log.

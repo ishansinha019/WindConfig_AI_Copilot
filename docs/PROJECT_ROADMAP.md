@@ -92,6 +92,10 @@ Success criteria:
 
 ## Milestone 5: Availability Configuration Wizard
 
+Detailed plan: see `docs/AVAILABILITY_CONFIG_MILESTONES.md` (milestones A1–A9),
+which supersedes the bullet list below and reworks Milestone 6 versioning to be
+per availability configuration instead of per contract.
+
 Purpose: model the main domain workflow in a way that resembles real contract configuration.
 
 Build:
