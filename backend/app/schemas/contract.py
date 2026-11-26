@@ -10,6 +10,9 @@ class ContractSummary(BaseModel):
     id: UUID
     name: str
     customer_name: str
+    customer_names: list[str]
+    order_reason: str
+    sales_document_number: str
     wind_farm_name: str
     region: str
     status: ContractStatus
@@ -59,11 +62,21 @@ class ProductionPeriodSummary(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class AlarmSummary(BaseModel):
+    id: UUID
+    code: str
+    name: str
+    description: str | None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class AlarmCategorySummary(BaseModel):
     id: UUID
     code: str
     name: str
     is_required: bool
+    alarms: list[AlarmSummary]
 
     model_config = ConfigDict(from_attributes=True)
 

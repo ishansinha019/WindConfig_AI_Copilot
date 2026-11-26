@@ -119,9 +119,11 @@ This starts:
 - Backend on port `8000`
 - Frontend on port `5173`
 
-On backend startup, the container applies the Alembic migrations and seeds the
-two synthetic demo contracts. The seed is idempotent, so restarting the stack
-does not duplicate data.
+On backend startup, the container applies the Alembic migrations and seeds six
+synthetic demo contracts, with contract-specific turbines, alarm categories
+and configurations. Restarting the stack does not duplicate that seed data.
+An upgrade keeps the original fleets and saved versions; use a separate fresh
+database to see the expanded demo fleets without deleting the original data.
 
 Available backend endpoints:
 
@@ -150,13 +152,15 @@ postgresql+psycopg://windconfig:windconfig@postgres:5432/windconfig
 ## Current Demo Flow
 
 The current foundation provides:
-- A frontend application shell with a backend health check.
-- PostgreSQL-backed contract list and contract-detail endpoints.
+- A contract home page and separate detail page, with a backend health check.
+- PostgreSQL-backed contracts with separate configuration histories and
+  contract-specific turbines and nested alarms.
 - Automatic migration and synthetic demo-data seeding in Docker Compose.
-- Backend API tests for the contracts foundation.
+- Backend tests that run without Docker: `uv run --extra dev pytest` from `backend`.
 
-The configuration workflow, drafts, publishing, and local AI features will be
-added milestone by milestone.
+The existing draft/publish API still operates on each contract's default
+configuration. Editing multiple configurations, the carousel, the wizard,
+and local AI are later milestones.
 
 ## Documentation
 

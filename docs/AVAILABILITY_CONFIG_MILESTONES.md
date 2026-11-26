@@ -108,12 +108,9 @@ showing backend readiness errors.
 - TanStack Query setup and Tailwind theme tokens in the frontend.
 
 ### What must change (the real gaps)
-1. **Versions are currently per contract, not per AV config.**
-   `configuration_versions.contract_id` + unique `(contract_id, version_number)`
-   + partial unique index `uq_published_contract_config` (one published per
-   contract) assume *one* configuration per contract. The requirement is
-   *multiple* AV configs per contract. → Add an `availability_configurations`
-   header table and re-parent versions onto it (Milestone A2).
+1. **A2 implemented:** each AV config has a stable GUID under its contract and
+   owns its versions. The existing contract-scoped configuration routes act
+   only on the migrated `Default configuration` until they are replaced in A3.
 2. **A1 complete:** shadcn/ui is initialized for Tailwind v3 with the `@/*`
    alias and planned UI primitives. Keep the existing Tailwind major version;
    future components should follow the generated `components.json` configuration.
@@ -124,19 +121,15 @@ showing backend readiness errors.
    (`formula_type`, `included_alarm_codes`, `variables`, …) that does not match
    the wizard. → Introduce a typed, versioned snapshot schema (`schema_version: 2`)
    in Pydantic (A3). Drafts may be partial; publish requires complete data.
-5. **Alarms are flat categories today** (`GRID`, `MAINT`, `WX`). A tree needs a
-   child level. → Add an `alarms` table (`alarm_category_id`, `code`, `name`) (A2).
-6. **Seeded turbines are `NR-01..04` / `CP-01..03`.** Requirement is
-   `T01..T10`-style codes with a **different turbine set per contract** (see 3.1a).
-   Turbines are already contract-scoped through `Contract → WindFarm → Turbine`,
-   and the unique constraint is `(wind_farm_id, code)`, so `T01` may exist in
-   several contracts as different rows with different UUIDs. Seeding is
-   idempotent *by id* and never updates existing rows, so **existing local
-   databases must be reset** (`docker compose down -v`) after A2. Data is
-   synthetic, so this is acceptable.
+5. **A2 implemented:** `GET /contracts/{id}` returns child `alarms` under
+   each alarm category (`GRID`, `MAINT`, `WX`).
+6. **A2 implemented:** fresh databases seed six synthetic contracts with
+   contract-specific `T01`-style turbines (see 3.1a). An upgraded database
+   keeps its original fleets so existing drafts still match them. No reset
+   is required for an upgrade.
 7. **Tests use SQLite** ([backend/tests/conftest.py](../backend/tests/conftest.py)),
-   so Postgres-only partial unique indexes are not exercised by pytest. Service
-   code must still check the "one published version per config" rule itself.
+   including a SQLite equivalent of the one-published-version index. Live
+   PostgreSQL migration and index behavior still need separate verification.
 8. **Calculation types confirmed by the user:** `TBA` = Time-Based Availability,
    `YBA` = Yield-Based Availability, `RBA` = Revenue-Based Availability.
    `NOWSI` is dropped. Formulas per type are synthetic examples.
@@ -144,9 +137,9 @@ showing backend readiness errors.
    this is the riskiest UI piece (A6).
 10. The frontend Docker image uses `npm ci`, so **`package-lock.json` must be
     committed** whenever dependencies are added.
-11. **The home-page card needs contract fields that don't exist yet:** order
-    reason, sales document number, and several customer names (today there is
-    one `customer_name` string). → Add columns in A2.
+11. **A2 implemented:** contract responses now include order reason, sales
+    document number, and a list of customer names. The old `customer_name`
+    response field is retained for the A1 pages.
 12. **There are no users or login.** "Created by / Last updated by" needs a
     name. → Lightweight "acting user" (D10): the header has a user picker with
     invented names, the frontend sends it as an `X-User-Name` request header,
@@ -190,7 +183,8 @@ Contract 1 ──< AvailabilityConfiguration (NEW header)
 
 `configuration_versions` (changed):
 - add `availability_configuration_id` UUID FK (not null after backfill), cascade.
-- keep `contract_id` (handy for queries) — or drop it; decide in A2 and record.
+- A2 removes the redundant `contract_id` column; join through the AV config to
+  scope versions to a contract. The old API still returns a derived `contract_id`.
 - replace unique `(contract_id, version_number)` with
   `(availability_configuration_id, version_number)`.
 - replace partial index `uq_published_contract_config` with
@@ -207,7 +201,7 @@ published one.
 
 - Each contract has its **own** turbine set, reached only through
   `Contract → WindFarm → Turbine`. There is no global turbine picker.
-- Sets must differ between contracts in **count, models/ratings and grouping**
+- Sets vary in **count, models/ratings and grouping**
   (see D7), even though codes look alike (`T01` in contract A ≠ `T01` in contract B).
 - An AV configuration may reference **only turbines of its own contract**:
   snapshot `turbine_ids` and every `alarm_assignments[].turbine_ids` must be a
@@ -372,7 +366,7 @@ backend readiness returns `is_valid: true`. Warn on navigation with unsaved chan
 | D4 | Default alarm assignment | Newly added alarm is assigned to **all** turbines selected in step 2; user can narrow. Removing a turbine in step 2 removes it from all assignments. |
 | D5 | Editing a published config | Allowed: creates a new draft version on the same config; publishing it archives the old published version. |
 | D6 | Park availability default | Prefilled from `contract.target_availability`, editable. |
-| D7 | Turbine seed (different per contract) | North Ridge: `T01..T10`, 2 groups (e.g. "Ridge North" T01–T05, "Ridge South" T06–T10), model `SG 5.0-145` 5.0 MW. Coastal Plains: `T01..T08`, 2 groups (e.g. "Shoreline" T01–T03, "Inland" T04–T08), model `SG 6.6-170` 6.6 MW. Remaining seed contracts (D12): 6–10 turbines each, 1–2 groups, varying models. Same codes across contracts are separate rows/UUIDs. |
+| D7 | Turbine seed (different per contract) | On a fresh database: North Ridge `T01..T10`, two groups, `Demo N50` (5.0 MW); Coastal Plains `T01..T08`, two groups, `Demo C66` (6.6 MW). Remaining seed contracts have 6–10 turbines each with varying models. Same codes across contracts are separate rows/UUIDs. Upgraded databases retain the original seeded fleets. |
 | D8 | Production periods | Not part of the 4-step wizard (user did not ask). Existing data stays; not validated. |
 | D9 | Contract status | Becomes `published` once any of its AV configs is published (existing behaviour kept). Not shown on the home-page card; the card shows Live / Expired instead. |
 | D10 | Created by / updated by | No login. Header "acting user" picker with ~4 invented names, saved in localStorage, sent as `X-User-Name`; backend falls back to `"Demo User"` if missing. |
@@ -408,7 +402,7 @@ Do not treat the absence of Docker on the work laptop as a reason to block
 implementation; split verification as follows:
 
 - **Work laptop (every milestone):** run the checks that do not need Docker:
-  backend `uv run pytest` (tests use in-memory SQLite), frontend `npm run lint`
+  backend `uv run --extra dev pytest` (tests use in-memory SQLite), frontend `npm run lint`
   and `npm run build`, plus any available unit/type checks. Do not claim that
   these validate PostgreSQL migrations or full-stack behaviour.
 - **Personal laptop (milestones that touch database, API integration, or UI
@@ -437,15 +431,18 @@ implementation; split verification as follows:
 - **Personal laptop verified when:** with the app running, the home and contract-detail routes render and navigation works. **Not run yet** (requires the backend/Compose stack).
 
 ### A2 — Backend data model & seed
-- [ ] Models: `AvailabilityConfiguration` (with `created_by`/`updated_by`), `Alarm`; add `availability_configuration_id` and `created_by` to `ConfigurationVersion`.
-- [ ] Contract columns for the home-page card (3.1): `order_reason`, `sales_document_number`, `customer_names` (migrate `customer_name` into it).
-- [ ] Seed 6 invented contracts per D12, with AV configs and versions carrying invented `created_by`/`updated_by` names and varied timestamps.
-- [ ] Alembic migration `2026112500xx_av_configurations.py`: create tables, backfill one "Default configuration" header per contract that already has versions, attach versions, swap unique constraints/indexes (see 3.1). Downgrade must work.
-- [ ] Seed: a **distinct turbine set per contract** per D7 (different counts, groups, models/ratings; codes `T01..` restart per contract but rows/UUIDs are separate), alarm tree (e.g. GRID ▸ Grid voltage low / Grid frequency fault / Grid loss; MAINT ▸ Scheduled service / Blade inspection; WX ▸ Icing / Lightning / Storm shutdown), and one sample v2 AV config per contract (one draft, one published).
-- [ ] Update `ContractDetailResponse` to nest `alarms` under alarm categories.
-- [ ] pytest: seeded contracts have different turbine sets (count and models differ; no turbine UUID shared); `GET /contracts/{id}` returns only that contract's turbines.
-- **Work laptop done when:** `uv run pytest` passes, including migration-independent model/seed/API tests.
-- **Personal laptop verified when:** `alembic upgrade head` succeeds on a fresh DB and upgrades a DB at `202611220002`; after `docker compose down -v` and `docker compose up --build`, the new seed and contract-specific turbine sets are visible.
+- [x] Add `AvailabilityConfiguration` and `Alarm` models. Re-parent `ConfigurationVersion` by config GUID and add `created_by`.
+- [x] Add contract card fields: `order_reason`, `sales_document_number`, `customer_names`; keep the old API field for A1.
+- [x] Add [migration 202611260001](../backend/alembic/versions/202611260001_add_availability_configurations.py). Attach existing versions to one `Default configuration` per contract without changing snapshot JSON, checksums, or version IDs. Enforce unique version numbers and at most one published version per config.
+- [x] Seed six invented contracts, distinct turbine fleets and nested alarms, and a mix of v2 drafts and published configurations with demo author metadata. One contract has no configs and one has 12. Keep the legacy North Ridge v1 draft to exercise the existing A1 path.
+- [x] Extend `GET /contracts/{id}` to nest `alarms`; test contract scoping, reseeding, the legacy API, and per-config uniqueness.
+- **Work laptop done:** 17 SQLite-backed pytest tests passed; Alembic generated PostgreSQL SQL for fresh install, upgrade, and downgrade. Frontend lint and build passed.
+- **Personal laptop verification pending:** execute the fresh install and upgrade from `202611220002` on PostgreSQL, verify legacy snapshots and seeded data, and exercise downgrade on a disposable DB (see section 7).
+
+Downgrade flattens versions back to the contract, renumbering only collisions.
+It retains snapshots and checksums, but drops A2-only config and alarm metadata
+and retains only the first customer name. It refuses to downgrade when the
+same contract has multiple published configurations rather than unpublishing one.
 
 ### A3 — Catalog, typed snapshot, AV config API, validation
 - [ ] `app/domain/catalog.py` + `GET /catalog`; invented acting users + `GET /users`.
@@ -513,14 +510,12 @@ implementation; split verification as follows:
 ```powershell
 # Full stack
 docker compose up --build
-# Reset DB (needed after A2 seed changes)
-docker compose down -v
 
 # Backend (from backend/)
 uv sync
 uv run alembic upgrade head
 uv run python -m app.db.seed
-uv run pytest
+uv run --extra dev pytest
 uv run fastapi dev app/main.py
 
 # Frontend (from frontend/)
@@ -536,8 +531,7 @@ npm run dev
 
 ```powershell
 # Backend (from backend/)
-uv sync
-uv run pytest
+uv run --extra dev pytest
 
 # Frontend (from frontend/)
 npm ci
@@ -558,11 +552,22 @@ git status --short
 docker compose up --build
 ```
 
-Use `docker compose down -v` only when intentionally resetting the synthetic
-database (for example after seed changes in A2); it deletes the local Compose
-database volume. Verify the migration, seeded API data, and milestone's
-browser-flow checklist before recording the personal-laptop check as passed.
-After making fixes, commit/push them and rerun the work-laptop checks.
+For A2, verify both paths without deleting the original database volume:
+
+1. **Upgrade:** on a database at `202611220002`, capture an existing version's ID,
+   snapshot, and checksum, then run `docker compose up --build` on A2.
+   Check `docker compose exec backend alembic current` reports `202611260001`,
+   confirm the version is unchanged under its default AV config, and verify
+   that existing A1 pages still load.
+2. **Fresh install:** stop the original stack with `docker compose down`
+   (no `-v`), then start a separate project with
+   `docker compose -p windconfig-a2-smoke up --build`. Check that the API
+   lists six contracts and that North Ridge and Coastal Plains expose 10 and 8
+   turbines with different IDs and nested alarms. Run the downgrade only on
+   a disposable database.
+
+Record the result in the Progress Log. `docker compose down -v` deletes the
+selected project's local database volume; it is not required for A2.
 
 Conventions to keep:
 - Backend layering: `api/v1` router → `services` → `models`; Pydantic schemas in `schemas/`.
@@ -587,3 +592,4 @@ personal-laptop verification.
 | 2026-11-25 | A0 | Two-laptop workflow: work laptop has no Docker Desktop; use it for pytest/lint/build. Personal laptop runs Docker/PostgreSQL and full-stack checks. | N/A | N/A | (pending) |
 | 2026-11-25 | A1 | Initialized shadcn/ui for Tailwind v3, installed routing/forms/date dependencies, added home/detail routes, preserved existing contract detail panels, and removed the milestone sidebar. | `npm run lint` and `npm run build` passed. | Not run; verify against Docker/API on personal laptop. | (pending) |
 | 2026-11-25 | A1 | User accepted the defaults: calculation types share the same fields; published configurations cannot be deleted. | N/A | N/A | (pending) |
+| 2026-11-26 | A2 | Added config GUIDs and per-config version storage, nested alarms, contract card fields, and six-contract synthetic seed data. Kept the A1 API compatible. | 17 pytest tests passed; frontend lint/build passed; Alembic SQL generated offline. | Not run; Docker engine unavailable. Verify actual PostgreSQL migration and seed on personal laptop. | (pending) |

@@ -1,9 +1,27 @@
+from datetime import datetime, timezone
 from uuid import UUID
 
+import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.db.seed import COASTAL_PLAINS_CONTRACT_ID, NORTH_RIDGE_CONTRACT_ID, seed_database
+from app.db.seed import (
+    COASTAL_PLAINS_CONTRACT_ID,
+    COASTAL_PLAINS_WIND_FARM_ID,
+    NORTH_RIDGE_CONTRACT_ID,
+    NORTH_RIDGE_WIND_FARM_ID,
+    SYNTHETIC_TURBINES,
+    seed_database,
+)
+from app.models.configuration import (
+    LEGACY_CONFIGURATION_NAME,
+    AvailabilityConfiguration,
+    ConfigurationStatus,
+    ConfigurationVersion,
+)
+from app.models.contract import Contract
 
 NORTH_RIDGE_ID = str(NORTH_RIDGE_CONTRACT_ID)
 COASTAL_PLAINS_ID = str(COASTAL_PLAINS_CONTRACT_ID)
@@ -14,10 +32,7 @@ VALID_SNAPSHOT_DATA = {
     "target_availability": 97.5,
     "included_alarm_codes": ["GRID", "MAINT", "WX"],
     "turbine_ids": [
-        "1101f056-80d5-47bd-a8ee-208b913cf612",
-        "1102f056-80d5-47bd-a8ee-208b913cf612",
-        "1103f056-80d5-47bd-a8ee-208b913cf612",
-        "1104f056-80d5-47bd-a8ee-208b913cf612",
+        str(row["id"]) for row in SYNTHETIC_TURBINES if row["wind_farm_id"] == NORTH_RIDGE_WIND_FARM_ID
     ],
     "production_period_ids": [
         "3101f056-80d5-47bd-a8ee-208b913cf612",
@@ -35,9 +50,8 @@ COASTAL_VALID_SNAPSHOT = {
     "target_availability": 96.8,
     "included_alarm_codes": ["GRID", "MAINT"],
     "turbine_ids": [
-        "2201f056-80d5-47bd-a8ee-208b913cf612",
-        "2202f056-80d5-47bd-a8ee-208b913cf612",
-        "2203f056-80d5-47bd-a8ee-208b913cf612",
+        str(row["id"]) for row in SYNTHETIC_TURBINES
+        if row["wind_farm_id"] == COASTAL_PLAINS_WIND_FARM_ID
     ],
     "production_period_ids": [
         "3201f056-80d5-47bd-a8ee-208b913cf612",
@@ -126,7 +140,7 @@ def test_validation_blocks_publish_when_required_alarms_missing(client: TestClie
 def test_validation_blocks_publish_when_turbines_unassigned(client: TestClient, db_session: Session) -> None:
     seed_database(db_session)
 
-    # Include only 2 of the 4 contract turbines
+    # Include only two of the contract turbines.
     incomplete_snapshot = dict(VALID_SNAPSHOT_DATA)
     incomplete_snapshot["turbine_ids"] = [
         "1101f056-80d5-47bd-a8ee-208b913cf612",
@@ -219,3 +233,78 @@ def test_configuration_diff_endpoint(client: TestClient, db_session: Session) ->
     assert "WX" in diff_data["removed_alarms"]
     assert diff_data["variable_changes"]["planned_maintenance_cap_hours"]["from"] == 120.0
     assert diff_data["variable_changes"]["planned_maintenance_cap_hours"]["to"] == 150.0
+
+
+def test_seeded_av_configurations_match_their_contract(db_session: Session) -> None:
+    seed_database(db_session)
+
+    contracts = list(db_session.scalars(select(Contract)))
+    assert sorted(len(contract.availability_configurations) for contract in contracts) == [
+        0, 1, 2, 3, 3, 12
+    ]
+    statuses = set()
+    for contract in contracts:
+        turbine_ids = {str(t.id) for farm in contract.wind_farms for t in farm.turbines}
+        alarm_ids = {str(a.id) for category in contract.alarm_categories for a in category.alarms}
+        for config in contract.availability_configurations:
+            for version in config.versions:
+                statuses.add(version.status)
+                snapshot = version.snapshot_data
+                assert set(snapshot["turbine_ids"]) <= turbine_ids
+                assert version.checksum == ConfigurationVersion.calculate_checksum(snapshot)
+                if config.name != LEGACY_CONFIGURATION_NAME:
+                    assert snapshot["schema_version"] == 2
+                    assert snapshot["basic_details"]["name"] == config.name
+                    assert all(a["alarm_id"] in alarm_ids for a in snapshot["alarm_assignments"])
+    assert statuses == {ConfigurationStatus.DRAFT, ConfigurationStatus.PUBLISHED}
+
+
+def test_version_and_published_uniqueness_are_per_av_configuration(db_session: Session) -> None:
+    seed_database(db_session)
+    configs = list(db_session.scalars(select(AvailabilityConfiguration).where(
+        AvailabilityConfiguration.contract_id == NORTH_RIDGE_CONTRACT_ID,
+        AvailabilityConfiguration.name != LEGACY_CONFIGURATION_NAME,
+    )))
+    assert configs[0].id != configs[1].id
+
+    for config in configs:
+        config.versions[0].status = ConfigurationStatus.PUBLISHED
+        config.versions[0].published_at = datetime.now(timezone.utc)
+    db_session.flush()  # Two different configs may each have a published version.
+
+    def add_version(number: int, state: ConfigurationStatus) -> None:
+        db_session.add(ConfigurationVersion(
+            availability_configuration_id=configs[0].id,
+            version_number=number,
+            status=state,
+            snapshot_data={},
+            checksum=ConfigurationVersion.calculate_checksum({}),
+            created_by="Demo User",
+        ))
+        db_session.flush()
+
+    with pytest.raises(IntegrityError), db_session.begin_nested():
+        add_version(1, ConfigurationStatus.DRAFT)
+    with pytest.raises(IntegrityError), db_session.begin_nested():
+        add_version(2, ConfigurationStatus.PUBLISHED)
+
+
+def test_legacy_api_cannot_modify_a_separate_av_configuration(
+    client: TestClient, db_session: Session
+) -> None:
+    seed_database(db_session)
+    version_id = db_session.scalar(
+        select(ConfigurationVersion.id)
+        .join(ConfigurationVersion.availability_configuration)
+        .where(
+            AvailabilityConfiguration.contract_id == NORTH_RIDGE_CONTRACT_ID,
+            AvailabilityConfiguration.name != LEGACY_CONFIGURATION_NAME,
+        )
+    )
+    assert version_id is not None
+
+    response = client.post(
+        f"/api/v1/contracts/{NORTH_RIDGE_ID}/configuration/versions/{version_id}/publish"
+    )
+
+    assert response.status_code == 404

@@ -5,10 +5,16 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import desc, select, update
+from sqlalchemy import Select, desc, select, update
 from sqlalchemy.orm import Session, selectinload
 
-from app.models.configuration import ConfigurationStatus, ConfigurationVersion
+from app.models.configuration import (
+    DEMO_ACTOR,
+    LEGACY_CONFIGURATION_NAME,
+    AvailabilityConfiguration,
+    ConfigurationStatus,
+    ConfigurationVersion,
+)
 from app.models.contract import Contract, ContractStatus
 from app.models.turbine import Turbine
 from app.models.wind_farm import WindFarm
@@ -30,10 +36,30 @@ def _load_contract_with_relations(db: Session, contract_id: UUID) -> Contract | 
             .selectinload(Turbine.turbine_group),
             selectinload(Contract.production_periods),
             selectinload(Contract.alarm_categories),
-            selectinload(Contract.configuration_versions),
         )
     )
     return db.scalar(statement)
+
+
+def _legacy_configuration(db: Session, contract_id: UUID) -> AvailabilityConfiguration | None:
+    # The A1 API has no config ID; scope it to the migrated default until A3.
+    return db.scalar(
+        select(AvailabilityConfiguration).where(
+            AvailabilityConfiguration.contract_id == contract_id,
+            AvailabilityConfiguration.name == LEGACY_CONFIGURATION_NAME,
+        )
+    )
+
+
+def _legacy_versions(contract_id: UUID) -> Select[tuple[ConfigurationVersion]]:
+    return (
+        select(ConfigurationVersion)
+        .join(ConfigurationVersion.availability_configuration)
+        .where(
+            AvailabilityConfiguration.contract_id == contract_id,
+            AvailabilityConfiguration.name == LEGACY_CONFIGURATION_NAME,
+        )
+    )
 
 
 def validate_configuration_readiness(
@@ -105,14 +131,11 @@ def save_draft(
             detail="Contract not found.",
         )
 
-    # Fetch latest version for OCC check
-    statement = (
-        select(ConfigurationVersion)
-        .where(ConfigurationVersion.contract_id == contract_id)
-        .order_by(desc(ConfigurationVersion.version_number))
+    configuration = _legacy_configuration(db, contract_id)
+    latest_version = db.scalar(
+        _legacy_versions(contract_id).order_by(desc(ConfigurationVersion.version_number)).limit(1)
     )
-    existing_versions = list(db.scalars(statement))
-    current_version_number = existing_versions[0].version_number if existing_versions else 0
+    current_version_number = latest_version.version_number if latest_version is not None else 0
 
     if base_version is not None and base_version != current_version_number:
         raise HTTPException(
@@ -123,15 +146,24 @@ def save_draft(
             ),
         )
 
-    next_version_number = current_version_number + 1
-    checksum = ConfigurationVersion.calculate_checksum(snapshot_data)
+    if configuration is None:
+        configuration = AvailabilityConfiguration(
+            contract_id=contract_id,
+            name=LEGACY_CONFIGURATION_NAME,
+            created_by=DEMO_ACTOR,
+            updated_by=DEMO_ACTOR,
+        )
+    else:
+        configuration.updated_at = datetime.now(timezone.utc)
+        configuration.updated_by = DEMO_ACTOR
 
     new_version = ConfigurationVersion(
-        contract_id=contract_id,
-        version_number=next_version_number,
+        availability_configuration=configuration,
+        version_number=current_version_number + 1,
         status=ConfigurationStatus.DRAFT,
         snapshot_data=snapshot_data,
-        checksum=checksum,
+        checksum=ConfigurationVersion.calculate_checksum(snapshot_data),
+        created_by=DEMO_ACTOR,
     )
     db.add(new_version)
     db.commit()
@@ -147,11 +179,7 @@ def get_active_configuration(db: Session, contract_id: UUID) -> ActiveConfigurat
             detail="Contract not found.",
         )
 
-    statement = (
-        select(ConfigurationVersion)
-        .where(ConfigurationVersion.contract_id == contract_id)
-        .order_by(desc(ConfigurationVersion.version_number))
-    )
+    statement = _legacy_versions(contract_id).order_by(desc(ConfigurationVersion.version_number))
     versions = list(db.scalars(statement))
     version_responses = [ConfigurationVersionResponse.model_validate(v) for v in versions]
 
@@ -172,10 +200,7 @@ def get_active_configuration(db: Session, contract_id: UUID) -> ActiveConfigurat
 
 
 def get_version(db: Session, contract_id: UUID, version_id: UUID) -> ConfigurationVersion:
-    statement = select(ConfigurationVersion).where(
-        ConfigurationVersion.id == version_id,
-        ConfigurationVersion.contract_id == contract_id,
-    )
+    statement = _legacy_versions(contract_id).where(ConfigurationVersion.id == version_id)
     version = db.scalar(statement)
     if version is None:
         raise HTTPException(
@@ -209,7 +234,7 @@ def publish_version(db: Session, contract_id: UUID, version_id: UUID) -> Configu
     db.execute(
         update(ConfigurationVersion)
         .where(
-            ConfigurationVersion.contract_id == contract_id,
+            ConfigurationVersion.availability_configuration_id == version.availability_configuration_id,
             ConfigurationVersion.status == ConfigurationStatus.PUBLISHED,
         )
         .values(status=ConfigurationStatus.ARCHIVED)
@@ -217,6 +242,8 @@ def publish_version(db: Session, contract_id: UUID, version_id: UUID) -> Configu
 
     version.status = ConfigurationStatus.PUBLISHED
     version.published_at = datetime.now(timezone.utc)
+    version.availability_configuration.updated_at = version.published_at
+    version.availability_configuration.updated_by = DEMO_ACTOR
     contract.status = ContractStatus.PUBLISHED
     db.commit()
     db.refresh(version)
