@@ -484,10 +484,10 @@ same contract has multiple published configurations rather than unpublishing one
 - **Personal laptop verified when:** assignments round-trip through save/reload, readiness reports alarm rules, and different contracts show only their own turbine lists.
 
 ### A7 — Step 4 Details + Review & Publish + history
-- [ ] Park availability input (prefill D6), low/high wind variant selects.
-- [ ] Review panel: read-only summary of all steps + readiness errors (click → jump to step).
-- [ ] Publish button (disabled unless valid) → success toast, status badge updates.
-- [ ] Version history drawer with diff between two versions.
+- [x] Park availability input (prefill D6), low/high wind variant selects.
+- [x] Review panel: read-only summary of all steps + readiness errors (click → jump to step).
+- [x] Publish button (disabled unless valid) → success toast, status badge updates.
+- [x] Version history drawer with diff between two versions.
 - **Work laptop done when:** frontend lint/build and backend readiness/publish/overlap tests pass.
 - **Personal laptop verified when:** full flow home page → "+" → four steps → save → publish works against PostgreSQL; overlapping publish is blocked and the mini card shows the updated status and timestamp.
 
@@ -596,4 +596,5 @@ personal-laptop verification.
 | 2026-11-28 | A3 | Implemented catalog/users endpoints, typed snapshot v2, GUID-based AV config CRUD/draft(OCC)/publish/diff/delete APIs, `X-User-Name` tracking, single-query `GET /contracts` summaries, and step-hinted readiness + overlap validation; removed legacy contract-scoped config routes. | N/A (authored on personal laptop) | 15 pytest tests passed (`test_availability_configurations.py`, `test_contracts.py`, `test_health.py`); live PostgreSQL `/catalog`, `/users`, and `/contracts` verified. | `bd94474` |
 | 2026-11-28 | A4 | Built HomePage 3-column `ContractCard` grid, `AvConfigCarousel` (Embla dots/`n / N` counter, empty state), `AvConfigMiniCard` (⋮ Edit/Delete + published tooltip), `DeleteAvConfigDialog`, `ActingUserPicker`, and `AvConfigWizardPage` placeholder route; updated `ContractDetailPage` and `api.ts` for A3 endpoints. | N/A (authored on personal laptop) | `npm run lint` and `npm run build` passed inside `windconfig-frontend`; `http://localhost:5173/` returned HTTP 200. (Browser visual check pending user inspection.) | `e683e51` |
 | 2026-11-28 | A5 | Built `AvConfigWizardPage` (new & edit modes), `WizardLayout` (left step nav, `?step=`, sticky footer, unsaved-changes guard), `BasicDetailsStep` (`DatePicker`, `Select`, outside-contract-dates hint), Zod snapshot v2 schema, and OCC 409 conflict toast with reload action. | N/A (authored on personal laptop) | `npm run lint` and `npm run build` passed inside `windconfig-frontend`. (Browser end-to-end check pending user inspection.) | `df9f847` |
-| 2026-11-28 | A6 | Built Step 2 `TurbinesStep` (contract-scoped grouped turbine table, fleet/group select-all, D4 assignment pruning), Step 3 `FormulaAlarmsStep` (calc-type-filtered formula Select + reset on type change), and `AlarmTree` (collapsible tri-state categories, required badges, per-alarm turbine Command multi-select). | N/A (authored on personal laptop) | `npm run lint` and `npm run build` passed inside `windconfig-frontend`. (Browser round-trip check pending user inspection.) | (pending) |
+| 2026-11-28 | A6 | Built Step 2 `TurbinesStep` (contract-scoped grouped turbine table, fleet/group select-all, D4 assignment pruning), Step 3 `FormulaAlarmsStep` (calc-type-filtered formula Select + reset on type change), and `AlarmTree` (collapsible tri-state categories, required badges, per-alarm turbine Command multi-select). | N/A (authored on personal laptop) | `npm run lint` and `npm run build` passed inside `windconfig-frontend`. (Browser round-trip check pending user inspection.) | `9a82fae` |
+| 2026-11-28 | A7 | Built Step 4 `DetailsStep` (park availability + low/high wind variants), `ReviewPublishPanel` (4-step summary, clickable step-jump readiness errors/warnings, Publish action), and `VersionHistoryDialog` (version list + structural diff viewer). | N/A (authored on personal laptop) | `npm run lint` and `npm run build` passed inside `windconfig-frontend`. (Browser end-to-end publish/overlap check pending user inspection.) | (pending) |

@@ -111,6 +111,19 @@ export type AvReadinessResponse = {
   warnings: ReadinessIssue[];
 };
 
+export type AvDiffResponse = {
+  v_from_number: number;
+  v_to_number: number;
+  basic_details_changes: Record<string, { from: unknown; to: unknown }>;
+  added_turbines: string[];
+  removed_turbines: string[];
+  formula_change: { from: string | null; to: string | null } | null;
+  added_alarms: string[];
+  removed_alarms: string[];
+  alarm_assignment_changes: Array<{ alarm_id: string; from: string[]; to: string[] }>;
+  details_changes: Record<string, { from: unknown; to: unknown }>;
+};
+
 export type AlarmAssignment = {
   alarm_id: string;
   turbine_ids: string[];
@@ -310,4 +323,32 @@ export async function saveAvailabilityDraft(
     );
   }
   return response.json() as Promise<AvConfigVersion>;
+}
+
+export async function getAvailabilityVersions(
+  contractId: string,
+  configId: string,
+): Promise<AvConfigVersion[]> {
+  const response = await fetch(
+    `${apiBaseUrl}/api/v1/contracts/${contractId}/availability-configurations/${configId}/versions`,
+  );
+  if (!response.ok) {
+    throw new Error("Could not load version history");
+  }
+  return response.json() as Promise<AvConfigVersion[]>;
+}
+
+export async function getAvailabilityDiff(
+  contractId: string,
+  configId: string,
+  vFromId: string,
+  vToId: string,
+): Promise<AvDiffResponse> {
+  const response = await fetch(
+    `${apiBaseUrl}/api/v1/contracts/${contractId}/availability-configurations/${configId}/diff?v_from=${encodeURIComponent(vFromId)}&v_to=${encodeURIComponent(vToId)}`,
+  );
+  if (!response.ok) {
+    throw new Error("Could not compute version diff");
+  }
+  return response.json() as Promise<AvDiffResponse>;
 }

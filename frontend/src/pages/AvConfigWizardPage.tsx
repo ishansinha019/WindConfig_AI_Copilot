@@ -9,6 +9,8 @@ import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { VersionHistoryDialog } from "@/features/av-config/components/VersionHistoryDialog";
+import { ReviewPublishPanel } from "@/features/av-config/ReviewPublishPanel";
 import {
   availabilitySnapshotDraftSchema,
   type AvailabilitySnapshotFormValues,
@@ -17,6 +19,7 @@ import {
   normalizeSnapshot,
 } from "@/features/av-config/schema";
 import { BasicDetailsStep } from "@/features/av-config/steps/BasicDetailsStep";
+import { DetailsStep } from "@/features/av-config/steps/DetailsStep";
 import { FormulaAlarmsStep } from "@/features/av-config/steps/FormulaAlarmsStep";
 import { TurbinesStep } from "@/features/av-config/steps/TurbinesStep";
 import { WizardLayout } from "@/features/av-config/WizardLayout";
@@ -240,16 +243,21 @@ export function AvConfigWizardPage() {
         >
           ← All contracts
         </button>
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold text-foreground">
-            {watchedValues.basic_details.name.trim() ||
-              (isNew ? "New Availability Configuration" : configQuery.data?.name)}
-          </h1>
-          {!isNew && configQuery.data && (
-            <Badge variant="outline">
-              v{loadedVersion ?? configQuery.data.latest_version_number} &bull;{" "}
-              {configQuery.data.status}
-            </Badge>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-semibold text-foreground">
+              {watchedValues.basic_details.name.trim() ||
+                (isNew ? "New Availability Configuration" : configQuery.data?.name)}
+            </h1>
+            {!isNew && configQuery.data && (
+              <Badge variant="outline">
+                v{loadedVersion ?? configQuery.data.latest_version_number} &bull;{" "}
+                {configQuery.data.status}
+              </Badge>
+            )}
+          </div>
+          {!isNew && configId && (
+            <VersionHistoryDialog contractId={contractId} configId={configId} />
           )}
         </div>
         <p className="text-sm text-muted-foreground">
@@ -281,40 +289,22 @@ export function AvConfigWizardPage() {
           />
         )}
         {currentStep === 4 && (
-          <StepPlaceholder
-            stepNumber={4}
-            title="Details & Review"
-            description="Park availability, wind variants, and Review & Publish panel (Milestone A7). Existing detail values are preserved on save."
-            summary={`Park availability: ${watchedValues.details.park_availability_pct ?? "Unset"}%`}
-          />
+          <DetailsStep form={form} catalog={catalogQuery.data} />
         )}
       </WizardLayout>
-    </section>
-  );
-}
 
-function StepPlaceholder({
-  stepNumber,
-  title,
-  description,
-  summary,
-}: {
-  stepNumber: number;
-  title: string;
-  description: string;
-  summary: string;
-}) {
-  return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold text-foreground">
-          {stepNumber}. {title}
-        </h2>
-        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-      </div>
-      <div className="rounded-md border border-dashed border-border bg-muted/30 p-4 text-xs text-muted-foreground">
-        {summary}
-      </div>
-    </div>
+      <ReviewPublishPanel
+        contractId={contractId}
+        configId={configId}
+        latestVersionId={configQuery.data?.latest_version.id}
+        isNew={isNew}
+        isDirty={form.formState.isDirty}
+        isAlreadyPublished={
+          configQuery.data?.latest_version.status === "published"
+        }
+        values={watchedValues}
+        onJumpToStep={handleStepChange}
+      />
+    </section>
   );
 }
