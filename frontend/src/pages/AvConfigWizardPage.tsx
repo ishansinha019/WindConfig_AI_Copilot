@@ -17,6 +17,8 @@ import {
   normalizeSnapshot,
 } from "@/features/av-config/schema";
 import { BasicDetailsStep } from "@/features/av-config/steps/BasicDetailsStep";
+import { FormulaAlarmsStep } from "@/features/av-config/steps/FormulaAlarmsStep";
+import { TurbinesStep } from "@/features/av-config/steps/TurbinesStep";
 import { WizardLayout } from "@/features/av-config/WizardLayout";
 import {
   ApiError,
@@ -270,20 +272,12 @@ export function AvConfigWizardPage() {
             catalog={catalogQuery.data}
           />
         )}
-        {currentStep === 2 && (
-          <StepPlaceholder
-            stepNumber={2}
-            title="Turbines"
-            description="Turbine fleet selection table (Milestone A6). Currently selected turbines are preserved on save."
-            summary={`Selected turbines: ${watchedValues.turbine_ids.length}`}
-          />
-        )}
+        {currentStep === 2 && <TurbinesStep form={form} contract={contract} />}
         {currentStep === 3 && (
-          <StepPlaceholder
-            stepNumber={3}
-            title="Formula & alarm categories"
-            description="Formula selector and collapsible alarm tree (Milestone A6). Currently selected formula and alarm assignments are preserved on save."
-            summary={`Formula: ${watchedValues.formula_code ?? "None"} · Alarms assigned: ${watchedValues.alarm_assignments.length}`}
+          <FormulaAlarmsStep
+            form={form}
+            contract={contract}
+            catalog={catalogQuery.data}
           />
         )}
         {currentStep === 4 && (

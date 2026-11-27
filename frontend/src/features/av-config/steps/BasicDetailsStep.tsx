@@ -26,6 +26,8 @@ export function BasicDetailsStep({ form, contract, catalog }: BasicDetailsStepPr
     control,
     register,
     watch,
+    getValues,
+    setValue,
     formState: { errors },
   } = form;
 
@@ -90,7 +92,17 @@ export function BasicDetailsStep({ form, contract, catalog }: BasicDetailsStepPr
             render={({ field }) => (
               <Select
                 value={field.value ?? ""}
-                onValueChange={(val) => field.onChange(val || null)}
+                onValueChange={(val) => {
+                  const nextType = val || null;
+                  field.onChange(nextType);
+                  const currentFormula = getValues("formula_code");
+                  if (currentFormula && catalog?.formulas) {
+                    const match = catalog.formulas.find((f) => f.code === currentFormula);
+                    if (match && match.calculation_type !== nextType) {
+                      setValue("formula_code", null, { shouldDirty: true });
+                    }
+                  }
+                }}
               >
                 <SelectTrigger id="calculation-type">
                   <SelectValue placeholder="Select calculation type (TBA, YBA, RBA)" />
