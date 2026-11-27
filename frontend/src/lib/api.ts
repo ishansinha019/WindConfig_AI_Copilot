@@ -1,3 +1,5 @@
+import { getActingUser } from "./actingUser";
+
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
 export type HealthResponse = {
@@ -6,17 +8,40 @@ export type HealthResponse = {
 };
 
 export type ContractStatus = "draft" | "needs_review" | "published";
+export type ConfigurationStatus = "draft" | "in_review" | "published" | "archived";
+
+export type AvailabilityConfigSummary = {
+  id: string;
+  contract_id: string;
+  name: string;
+  status: "draft" | "published";
+  has_unpublished_draft: boolean;
+  calculation_type: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  latest_version_number: number;
+  created_by: string;
+  updated_by: string;
+  created_at: string;
+  updated_at: string;
+};
 
 export type ContractSummary = {
   id: string;
   name: string;
   customer_name: string;
+  customer_names: string[];
+  order_reason: string;
+  sales_document_number: string;
   wind_farm_name: string;
   region: string;
   status: ContractStatus;
   start_date: string;
   end_date: string;
   target_availability: number;
+  is_live: boolean;
+  turbine_count: number;
+  availability_configurations: AvailabilityConfigSummary[];
 };
 
 export type Turbine = {
@@ -25,6 +50,13 @@ export type Turbine = {
   model_name: string;
   rated_power_mw: number;
   turbine_group: { id: string; name: string } | null;
+};
+
+export type Alarm = {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
 };
 
 export type ContractDetail = ContractSummary & {
@@ -45,51 +77,45 @@ export type ContractDetail = ContractSummary & {
     code: string;
     name: string;
     is_required: boolean;
+    alarms: Alarm[];
   }>;
 };
 
-export type ConfigurationStatus = "draft" | "in_review" | "published" | "archived";
-
-export type ConfigurationVersion = {
+export type AvConfigVersion = {
   id: string;
-  contract_id: string;
+  availability_configuration_id: string;
   version_number: number;
   status: ConfigurationStatus;
-  snapshot_data: {
-    formula_type?: string;
-    formula_name?: string;
-    target_availability?: number;
-    included_alarm_codes?: string[];
-    turbine_ids?: string[];
-    production_period_ids?: string[];
-    variables?: Record<string, number | string>;
-  };
+  snapshot_data: Record<string, unknown>;
   checksum: string;
+  created_by: string;
   published_at: string | null;
   created_at: string;
   updated_at: string;
 };
 
-export type ActiveConfigurationResponse = {
-  contract_id: string;
-  current_version: ConfigurationVersion | null;
-  versions: ConfigurationVersion[];
+export type AvailabilityConfigDetail = AvailabilityConfigSummary & {
+  latest_version: AvConfigVersion;
+  published_version: AvConfigVersion | null;
 };
 
-export type ValidationReadinessResponse = {
+export type ReadinessIssue = {
+  step: number;
+  field: string;
+  message: string;
+};
+
+export type AvReadinessResponse = {
   is_valid: boolean;
-  blocking_errors: string[];
-  warnings: string[];
+  blocking_errors: ReadinessIssue[];
+  warnings: ReadinessIssue[];
 };
 
-export type DiffResponse = {
-  v_from_number: number;
-  v_to_number: number;
-  added_alarms: string[];
-  removed_alarms: string[];
-  added_turbines: string[];
-  removed_turbines: string[];
-  variable_changes: Record<string, { from: unknown; to: unknown }>;
+export type CatalogResponse = {
+  calculation_types: Array<{ code: string; name: string; description: string }>;
+  formulas: Array<{ code: string; calculation_type: string; name: string; expression: string }>;
+  low_wind_variants: Array<{ code: string; name: string; description: string }>;
+  high_wind_variants: Array<{ code: string; name: string; description: string }>;
 };
 
 export async function getHealth(): Promise<HealthResponse> {
@@ -98,6 +124,23 @@ export async function getHealth(): Promise<HealthResponse> {
     throw new Error("Backend health check failed");
   }
   return response.json() as Promise<HealthResponse>;
+}
+
+export async function getUsers(): Promise<string[]> {
+  const response = await fetch(`${apiBaseUrl}/api/v1/users`);
+  if (!response.ok) {
+    throw new Error("Could not load acting users");
+  }
+  const data = (await response.json()) as { users: string[] };
+  return data.users;
+}
+
+export async function getCatalog(): Promise<CatalogResponse> {
+  const response = await fetch(`${apiBaseUrl}/api/v1/catalog`);
+  if (!response.ok) {
+    throw new Error("Could not load catalog");
+  }
+  return response.json() as Promise<CatalogResponse>;
 }
 
 export async function getContracts(): Promise<ContractSummary[]> {
@@ -117,52 +160,69 @@ export async function getContract(contractId: string): Promise<ContractDetail> {
   return response.json() as Promise<ContractDetail>;
 }
 
-export async function getActiveConfiguration(contractId: string): Promise<ActiveConfigurationResponse> {
-  const response = await fetch(`${apiBaseUrl}/api/v1/contracts/${contractId}/configuration`);
+export async function getAvailabilityConfiguration(
+  contractId: string,
+  configId: string,
+): Promise<AvailabilityConfigDetail> {
+  const response = await fetch(
+    `${apiBaseUrl}/api/v1/contracts/${contractId}/availability-configurations/${configId}`,
+  );
   if (!response.ok) {
-    throw new Error("Could not load active configuration");
+    throw new Error("Could not load availability configuration");
   }
-  return response.json() as Promise<ActiveConfigurationResponse>;
+  return response.json() as Promise<AvailabilityConfigDetail>;
 }
 
-export async function getConfigurationReadiness(
+export async function getAvailabilityReadiness(
   contractId: string,
+  configId: string,
   versionId: string,
-): Promise<ValidationReadinessResponse> {
-  const response = await fetch(`${apiBaseUrl}/api/v1/contracts/${contractId}/configuration/versions/${versionId}/readiness`);
+): Promise<AvReadinessResponse> {
+  const response = await fetch(
+    `${apiBaseUrl}/api/v1/contracts/${contractId}/availability-configurations/${configId}/versions/${versionId}/readiness`,
+  );
   if (!response.ok) {
     throw new Error("Could not check configuration readiness");
   }
-  return response.json() as Promise<ValidationReadinessResponse>;
+  return response.json() as Promise<AvReadinessResponse>;
 }
 
-export async function publishConfiguration(
+export async function publishAvailabilityVersion(
   contractId: string,
+  configId: string,
   versionId: string,
-): Promise<ConfigurationVersion> {
-  const response = await fetch(`${apiBaseUrl}/api/v1/contracts/${contractId}/configuration/versions/${versionId}/publish`, {
-    method: "POST",
-  });
+): Promise<AvConfigVersion> {
+  const response = await fetch(
+    `${apiBaseUrl}/api/v1/contracts/${contractId}/availability-configurations/${configId}/versions/${versionId}/publish`,
+    {
+      method: "POST",
+      headers: {
+        "X-User-Name": getActingUser(),
+      },
+    },
+  );
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => ({}))) as { detail?: string };
     throw new Error(errorBody.detail ?? "Failed to publish configuration");
   }
-  return response.json() as Promise<ConfigurationVersion>;
+  return response.json() as Promise<AvConfigVersion>;
 }
 
-export async function saveDraftConfiguration(
+export async function deleteAvailabilityConfiguration(
   contractId: string,
-  baseVersion: number | null,
-  snapshotData: Record<string, unknown>,
-): Promise<ConfigurationVersion> {
-  const response = await fetch(`${apiBaseUrl}/api/v1/contracts/${contractId}/configuration/drafts`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ base_version: baseVersion, snapshot_data: snapshotData }),
-  });
+  configId: string,
+): Promise<void> {
+  const response = await fetch(
+    `${apiBaseUrl}/api/v1/contracts/${contractId}/availability-configurations/${configId}`,
+    {
+      method: "DELETE",
+      headers: {
+        "X-User-Name": getActingUser(),
+      },
+    },
+  );
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => ({}))) as { detail?: string };
-    throw new Error(errorBody.detail ?? "Failed to save draft");
+    throw new Error(errorBody.detail ?? "Failed to delete availability configuration");
   }
-  return response.json() as Promise<ConfigurationVersion>;
 }

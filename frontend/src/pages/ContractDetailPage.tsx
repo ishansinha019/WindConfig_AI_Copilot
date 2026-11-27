@@ -1,69 +1,25 @@
-import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
-  AlertCircle,
   AlertTriangle,
-  CheckCircle2,
   Factory,
   Layers3,
-  Send,
+  Plus,
   Sliders,
   Wind,
 } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 
-import {
-  getActiveConfiguration,
-  getConfigurationReadiness,
-  getContract,
-  publishConfiguration,
-  type ConfigurationStatus,
-} from "../lib/api";
-
-const configStatusClasses: Record<ConfigurationStatus, string> = {
-  draft: "bg-amber-50 text-amber-800 border-amber-200",
-  in_review: "bg-blue-50 text-blue-800 border-blue-200",
-  published: "bg-emerald-50 text-emerald-800 border-emerald-200",
-  archived: "bg-slate-100 text-slate-700 border-slate-200",
-};
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { getContract } from "../lib/api";
 
 export function ContractDetailPage() {
   const { contractId } = useParams<{ contractId: string }>();
-  const [publishMessage, setPublishMessage] = useState<string | null>(null);
-  const queryClient = useQueryClient();
 
   const detailQuery = useQuery({
     queryKey: ["contract", contractId],
     queryFn: () => getContract(contractId ?? ""),
     enabled: Boolean(contractId),
-  });
-
-  const configQuery = useQuery({
-    queryKey: ["contract-config", contractId],
-    queryFn: () => getActiveConfiguration(contractId ?? ""),
-    enabled: Boolean(contractId),
-  });
-
-  const currentVersion = configQuery.data?.current_version;
-
-  const readinessQuery = useQuery({
-    queryKey: ["config-readiness", contractId, currentVersion?.id],
-    queryFn: () => getConfigurationReadiness(contractId ?? "", currentVersion?.id ?? ""),
-    enabled: Boolean(contractId && currentVersion?.id),
-  });
-
-  const publishMutation = useMutation({
-    mutationFn: () => publishConfiguration(contractId ?? "", currentVersion?.id ?? ""),
-    onSuccess: (publishedVersion) => {
-      setPublishMessage(`Successfully published Version ${publishedVersion.version_number}!`);
-      void queryClient.invalidateQueries({ queryKey: ["contracts"] });
-      void queryClient.invalidateQueries({ queryKey: ["contract", contractId] });
-      void queryClient.invalidateQueries({ queryKey: ["contract-config", contractId] });
-      void queryClient.invalidateQueries({ queryKey: ["config-readiness", contractId] });
-    },
-    onError: (err: Error) => {
-      setPublishMessage(`Publish failed: ${err.message}`);
-    },
   });
 
   if (!contractId || detailQuery.isLoading) {
@@ -74,6 +30,8 @@ export function ContractDetailPage() {
     return <DashboardMessage message="Could not load the selected contract details." />;
   }
 
+  const contract = detailQuery.data;
+
   return (
     <section className="space-y-6">
       <div className="space-y-2">
@@ -82,190 +40,136 @@ export function ContractDetailPage() {
         </Link>
         <div>
           <p className="text-sm font-semibold text-primary">Contract overview</p>
-          <h1 className="mt-1 text-2xl font-semibold text-foreground">{detailQuery.data.name}</h1>
+          <h1 className="mt-1 text-2xl font-semibold text-foreground">{contract.name}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {detailQuery.data.customer_name} · {detailQuery.data.wind_farm_name}
+            {contract.customer_names.join(" | ")} · {contract.wind_farm_name} ({contract.turbine_count} turbines)
           </p>
         </div>
       </div>
 
       <div className="space-y-6">
-          {/* Active Configuration Snapshot & Deterministic Readiness Card */}
-          <article className="rounded-lg border border-border bg-white p-5 shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
-              <div>
-                <SectionTitle icon={Sliders} title="Active Availability Configuration" />
-                <p className="mt-1 text-xs text-slate-500">
-                  Versioned snapshot defining IEC 61400-26-1 formulas, turbine scope, and alarm inclusion rules.
-                </p>
-              </div>
-              {currentVersion ? (
-                <div className="flex items-center gap-3">
-                  <span
-                    className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wider ${
-                      configStatusClasses[currentVersion.status]
-                    }`}
-                  >
-                    Version {currentVersion.version_number} &bull; {currentVersion.status}
-                  </span>
-                  {currentVersion.status !== "published" && (
-                    <button
-                      type="button"
-                      disabled={publishMutation.isPending || readinessQuery.data?.is_valid === false}
-                      onClick={() => publishMutation.mutate()}
-                      className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <Send className="h-3.5 w-3.5" />
-                      {publishMutation.isPending ? "Validating & Publishing..." : "Publish Configuration"}
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-                  No active version draft
-                </span>
-              )}
+        <article className="rounded-lg border border-border bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
+            <div>
+              <SectionTitle icon={Sliders} title="Availability Configurations" />
+              <p className="mt-1 text-xs text-slate-500">
+                Each configuration is versioned under its own GUID and can be edited or published independently.
+              </p>
             </div>
+            <Button asChild size="sm">
+              <Link to={`/contracts/${contract.id}/configurations/new`}>
+                <Plus className="mr-1.5 h-4 w-4" />
+                New Configuration
+              </Link>
+            </Button>
+          </div>
 
-            {publishMessage && (
-              <div
-                className={`mt-4 rounded-md p-3 text-xs font-medium ${
-                  publishMessage.startsWith("Publish failed")
-                    ? "bg-rose-50 text-rose-800"
-                    : "bg-emerald-50 text-emerald-800"
-                }`}
-              >
-                {publishMessage}
-              </div>
-            )}
-
-            {currentVersion ? (
-              <div className="mt-5 grid gap-5 md:grid-cols-3">
-                <div className="rounded-lg bg-slate-50 p-4">
-                  <span className="text-xs font-semibold uppercase text-slate-500">Availability Formula</span>
-                  <p className="mt-1 font-semibold text-slate-900">
-                    {currentVersion.snapshot_data.formula_name ?? "Standard Time-based"}
-                  </p>
-                  <p className="mt-1 font-mono text-xs text-slate-600">
-                    Type: {currentVersion.snapshot_data.formula_type}
-                  </p>
-                  <div className="mt-3 text-xs text-slate-600">
-                    Target SLA: <span className="font-semibold text-slate-900">{currentVersion.snapshot_data.target_availability}%</span>
+          {contract.availability_configurations.length === 0 ? (
+            <div className="mt-4 text-sm text-slate-500">No availability configurations created yet.</div>
+          ) : (
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {contract.availability_configurations.map((cfg) => (
+                <Link
+                  key={cfg.id}
+                  to={`/contracts/${contract.id}/configurations/${cfg.id}`}
+                  className="rounded-md border border-border bg-slate-50 p-3.5 transition hover:border-primary"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-sm font-semibold text-slate-900">{cfg.name}</span>
+                    <Badge
+                      variant="outline"
+                      className={
+                        cfg.status === "published"
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                          : "border-amber-200 bg-amber-50 text-amber-800"
+                      }
+                    >
+                      {cfg.status}
+                    </Badge>
                   </div>
-                </div>
-
-                <div className="rounded-lg bg-slate-50 p-4">
-                  <span className="text-xs font-semibold uppercase text-slate-500">Deterministic Validation</span>
-                  {readinessQuery.isLoading && <p className="mt-1 text-xs text-slate-500">Evaluating rules...</p>}
-                  {readinessQuery.data && (
-                    <div className="mt-2 space-y-2">
-                      <div className="flex items-center gap-1.5">
-                        {readinessQuery.data.is_valid ? (
-                          <>
-                            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                            <span className="text-xs font-medium text-emerald-800">
-                              Ready to Publish (0 blocking errors)
-                            </span>
-                          </>
-                        ) : (
-                          <>
-                            <AlertCircle className="h-4 w-4 text-rose-600" />
-                            <span className="text-xs font-medium text-rose-800">
-                              {readinessQuery.data.blocking_errors.length} Blocking Validation Error(s)
-                            </span>
-                          </>
-                        )}
-                      </div>
-                      {readinessQuery.data.blocking_errors.map((err, i) => (
-                        <p key={i} className="text-xs text-rose-700">
-                          &bull; {err}
-                        </p>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="rounded-lg bg-slate-50 p-4">
-                  <span className="text-xs font-semibold uppercase text-slate-500">Parameters & Governance</span>
-                  <div className="mt-2 space-y-1 text-xs text-slate-700">
-                    <div>
-                      Turbines in scope: <span className="font-semibold">{currentVersion.snapshot_data.turbine_ids?.length ?? 0}</span>
-                    </div>
-                    <div>
-                      Alarms in formula: <span className="font-semibold">{currentVersion.snapshot_data.included_alarm_codes?.join(", ") ?? "None"}</span>
-                    </div>
-                    <div className="truncate font-mono text-[10px] text-slate-400">
-                      Checksum: {currentVersion.checksum.substring(0, 16)}...
-                    </div>
+                  <div className="mt-2 text-xs text-slate-600">
+                    v{cfg.latest_version_number} · {cfg.calculation_type ?? "Unset"}
                   </div>
-                </div>
-              </div>
-            ) : (
-              <div className="mt-4 text-sm text-slate-500">No configuration snapshot has been created yet.</div>
-            )}
-          </article>
-
-          {/* Wind farm & Turbine Asset Table + Operational Periods */}
-          <div className="grid gap-4 lg:grid-cols-2">
-            <article className="rounded-lg border border-border bg-white p-5">
-              <SectionTitle icon={Factory} title="Wind farm and turbines" />
-              {detailQuery.data.wind_farms.map((windFarm) => (
-                <div key={windFarm.id} className="mt-4">
-                  <p className="font-semibold text-slate-950">{windFarm.name}</p>
-                  <p className="text-sm text-slate-600">{windFarm.region}</p>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    {windFarm.turbines.map((turbine) => (
-                      <div key={turbine.id} className="rounded-md bg-slate-50 px-3 py-2 text-sm">
-                        <div className="font-semibold text-slate-900">{turbine.code}</div>
-                        <div className="text-slate-600">
-                          {turbine.model_name} - {turbine.rated_power_mw} MW
-                        </div>
-                        <div className="mt-1 text-xs text-primary">
-                          {turbine.turbine_group?.name ?? "Ungrouped"}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                </Link>
               ))}
-            </article>
+            </div>
+          )}
+        </article>
 
-            <div className="space-y-4">
-              <article className="rounded-lg border border-border bg-white p-5">
-                <SectionTitle icon={Layers3} title="Production periods" />
-                <div className="mt-4 space-y-3">
-                  {detailQuery.data.production_periods.map((period) => (
-                    <div key={period.id} className="flex justify-between gap-3 text-sm">
-                      <span className="font-medium text-slate-900">{period.name}</span>
-                      <span className="text-right text-slate-600">
-                        {period.start_date} to {period.end_date}
-                      </span>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <article className="rounded-lg border border-border bg-white p-5">
+            <SectionTitle icon={Factory} title="Wind farm and turbines" />
+            {contract.wind_farms.map((windFarm) => (
+              <div key={windFarm.id} className="mt-4">
+                <p className="font-semibold text-slate-950">{windFarm.name}</p>
+                <p className="text-sm text-slate-600">{windFarm.region}</p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {windFarm.turbines.map((turbine) => (
+                    <div key={turbine.id} className="rounded-md bg-slate-50 px-3 py-2 text-sm">
+                      <div className="font-semibold text-slate-900">{turbine.code}</div>
+                      <div className="text-slate-600">
+                        {turbine.model_name} - {turbine.rated_power_mw} MW
+                      </div>
+                      <div className="mt-1 text-xs text-primary">
+                        {turbine.turbine_group?.name ?? "Ungrouped"}
+                      </div>
                     </div>
                   ))}
                 </div>
-              </article>
+              </div>
+            ))}
+          </article>
 
-              <article className="rounded-lg border border-border bg-white p-5">
-                <SectionTitle icon={AlertTriangle} title="Alarm categories & SLA mapping" />
-                <div className="mt-4 space-y-3">
-                  {detailQuery.data.alarm_categories.map((alarm) => (
-                    <div key={alarm.id} className="flex items-center justify-between gap-3 text-sm">
+          <div className="space-y-4">
+            <article className="rounded-lg border border-border bg-white p-5">
+              <SectionTitle icon={Layers3} title="Production periods" />
+              <div className="mt-4 space-y-3">
+                {contract.production_periods.map((period) => (
+                  <div key={period.id} className="flex justify-between gap-3 text-sm">
+                    <span className="font-medium text-slate-900">{period.name}</span>
+                    <span className="text-right text-slate-600">
+                      {period.start_date} to {period.end_date}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </article>
+
+            <article className="rounded-lg border border-border bg-white p-5">
+              <SectionTitle icon={AlertTriangle} title="Alarm categories & nested alarms" />
+              <div className="mt-4 space-y-4">
+                {contract.alarm_categories.map((category) => (
+                  <div key={category.id} className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-3 text-sm">
                       <span className="text-slate-900">
-                        <span className="font-semibold">{alarm.code}</span> - {alarm.name}
+                        <span className="font-semibold">{category.code}</span> - {category.name}
                       </span>
                       <span
                         className={`rounded px-2 py-0.5 text-xs font-semibold ${
-                          alarm.is_required ? "bg-rose-50 text-rose-700" : "bg-slate-100 text-slate-600"
+                          category.is_required ? "bg-rose-50 text-rose-700" : "bg-slate-100 text-slate-600"
                         }`}
                       >
-                        {alarm.is_required ? "Mandatory in Formula" : "Optional"}
+                        {category.is_required ? "Mandatory" : "Optional"}
                       </span>
                     </div>
-                  ))}
-                </div>
-              </article>
-            </div>
+                    {category.alarms.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 pl-2">
+                        {category.alarms.map((alarm) => (
+                          <span
+                            key={alarm.id}
+                            className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-700"
+                          >
+                            {alarm.code}: {alarm.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </article>
           </div>
+        </div>
       </div>
     </section>
   );

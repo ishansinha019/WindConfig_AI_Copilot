@@ -457,13 +457,13 @@ same contract has multiple published configurations rather than unpublishing one
 - **Personal laptop verified when:** migrations apply to PostgreSQL, seeded data is returned by the real API, and the endpoints work against PostgreSQL via `/docs` or the frontend.
 
 ### A4 — Home page: contract cards + AV config carousel
-- [ ] `HomePage` grid of `ContractCard` exactly as in section 1 "Home page layout" (icon, info rows, Live/Expired, customers).
-- [ ] "Availability Configuration" header with "⚙ N Configurations" badge and "+" button.
-- [ ] `AvConfigCarousel` + `AvConfigMiniCard` (status, dates, created/updated on + by, ⋮ menu); arrows disabled at the ends; dots or "n / N" counter (D11); empty state.
-- [ ] "+" navigates to `/contracts/:contractId/configurations/new` (the wizard itself is built in A5).
-- [ ] ⋮ menu: **Edit** → wizard by GUID; **Delete** → `DeleteAvConfigDialog` → DELETE by GUID → card refreshes (disabled with tooltip if published, D14).
-- [ ] `ActingUserPicker` in the header (D10).
-- [ ] Loading skeletons and an error state if the API is down.
+- [x] `HomePage` grid of `ContractCard` exactly as in section 1 "Home page layout" (icon, info rows, Live/Expired, customers).
+- [x] "Availability Configuration" header with "⚙ N Configurations" badge and "+" button.
+- [x] `AvConfigCarousel` + `AvConfigMiniCard` (status, dates, created/updated on + by, ⋮ menu); arrows disabled at the ends; dots or "n / N" counter (D11); empty state.
+- [x] "+" navigates to `/contracts/:contractId/configurations/new` (the wizard itself is built in A5).
+- [x] ⋮ menu: **Edit** → wizard by GUID; **Delete** → `DeleteAvConfigDialog` → DELETE by GUID → card refreshes (disabled with tooltip if published, D14).
+- [x] `ActingUserPicker` in the header (D10).
+- [x] Loading skeletons and an error state if the API is down.
 - **Work laptop done when:** `npm run lint` and `npm run build` pass.
 - **Personal laptop verified when:** the home page shows seeded contract/config cards from the real API; carousel, empty state, edit, and draft deletion work in the browser.
 
@@ -593,4 +593,5 @@ personal-laptop verification.
 | 2026-11-25 | A1 | Initialized shadcn/ui for Tailwind v3, installed routing/forms/date dependencies, added home/detail routes, preserved existing contract detail panels, and removed the milestone sidebar. | `npm run lint` and `npm run build` passed. | Verified with Docker stack; A1 home and contract detail pages load against live API. | `5e4c003` |
 | 2026-11-25 | A1 | User accepted the defaults: calculation types share the same fields; published configurations cannot be deleted. | N/A | N/A | `5e4c003` |
 | 2026-11-26 | A2 | Added config GUIDs and per-config version storage, nested alarms, contract card fields, and six-contract synthetic seed data. Kept the A1 API compatible. | 17 pytest tests passed; frontend lint/build passed; Alembic SQL generated offline. | Verified on personal laptop (2026-11-28): upgrade (`202611260001`, checksum/version preserved) and fresh install (6 contracts, 10/8 turbines, nested alarms) passed. | `f694be9` |
-| 2026-11-28 | A3 | Implemented catalog/users endpoints, typed snapshot v2, GUID-based AV config CRUD/draft(OCC)/publish/diff/delete APIs, `X-User-Name` tracking, single-query `GET /contracts` summaries, and step-hinted readiness + overlap validation; removed legacy contract-scoped config routes. | N/A (authored on personal laptop) | 15 pytest tests passed (`test_availability_configurations.py`, `test_contracts.py`, `test_health.py`); live PostgreSQL `/catalog`, `/users`, and `/contracts` verified. | (pending) |
+| 2026-11-28 | A3 | Implemented catalog/users endpoints, typed snapshot v2, GUID-based AV config CRUD/draft(OCC)/publish/diff/delete APIs, `X-User-Name` tracking, single-query `GET /contracts` summaries, and step-hinted readiness + overlap validation; removed legacy contract-scoped config routes. | N/A (authored on personal laptop) | 15 pytest tests passed (`test_availability_configurations.py`, `test_contracts.py`, `test_health.py`); live PostgreSQL `/catalog`, `/users`, and `/contracts` verified. | `bd94474` |
+| 2026-11-28 | A4 | Built HomePage 3-column `ContractCard` grid, `AvConfigCarousel` (Embla dots/`n / N` counter, empty state), `AvConfigMiniCard` (⋮ Edit/Delete + published tooltip), `DeleteAvConfigDialog`, `ActingUserPicker`, and `AvConfigWizardPage` placeholder route; updated `ContractDetailPage` and `api.ts` for A3 endpoints. | N/A (authored on personal laptop) | `npm run lint` and `npm run build` passed inside `windconfig-frontend`; `http://localhost:5173/` returned HTTP 200. (Browser visual check pending user inspection.) | (pending) |

@@ -1,97 +1,88 @@
 import { useQuery } from "@tanstack/react-query";
-import { ArrowUpRight, CalendarDays, Factory } from "lucide-react";
-import { Link } from "react-router-dom";
+import { AlertCircle } from "lucide-react";
 
-import { getContracts, type ContractStatus } from "../lib/api";
-
-const statusLabels: Record<ContractStatus, string> = {
-  draft: "Draft",
-  needs_review: "Needs review",
-  published: "Published",
-};
-
-const statusClasses: Record<ContractStatus, string> = {
-  draft: "bg-amber-50 text-amber-800",
-  needs_review: "bg-rose-50 text-rose-800",
-  published: "bg-emerald-50 text-emerald-800",
-};
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ContractCard } from "@/features/contracts/ContractCard";
+import { getContracts } from "@/lib/api";
 
 export function HomePage() {
-  const contractsQuery = useQuery({ queryKey: ["contracts"], queryFn: getContracts });
+  const contractsQuery = useQuery({
+    queryKey: ["contracts"],
+    queryFn: getContracts,
+  });
 
   if (contractsQuery.isLoading) {
-    return <PageMessage message="Loading the synthetic contract portfolio..." />;
+    return (
+      <section className="space-y-6">
+        <HomeHeader />
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, idx) => (
+            <Card key={idx} className="space-y-4 p-5">
+              <CardHeader className="p-0">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-10 w-10 rounded-md" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-4 w-3/4" />
+                    <Skeleton className="h-3 w-1/3" />
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3 p-0">
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-5/6" />
+                <Skeleton className="h-3 w-2/3" />
+                <Skeleton className="h-24 w-full rounded-md" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </section>
+    );
   }
 
   if (contractsQuery.isError) {
-    return <PageMessage message="The contract API is unavailable. Start the backend and refresh." />;
+    return (
+      <section className="space-y-6">
+        <HomeHeader />
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Backend API Unavailable</AlertTitle>
+          <AlertDescription>
+            Could not load the contract portfolio. Verify the backend container is running and
+            refresh the page.
+          </AlertDescription>
+        </Alert>
+      </section>
+    );
   }
 
   const contracts = contractsQuery.data ?? [];
 
   return (
-    <div className="space-y-6">
-      <div>
-        <p className="text-sm font-semibold text-primary">Synthetic operations portfolio</p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">Contracts</h1>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-          Select a contract to inspect its wind farm assets and availability configuration.
-        </p>
+    <section className="space-y-6">
+      <HomeHeader />
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+        {contracts.map((contract) => (
+          <ContractCard key={contract.id} contract={contract} />
+        ))}
       </div>
-
-      {contracts.length === 0 ? (
-        <PageMessage message="No contracts are available yet." />
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {contracts.map((contract) => (
-            <Link
-              key={contract.id}
-              to={`/contracts/${contract.id}`}
-              className="group rounded-lg border border-border bg-card p-5 transition hover:border-primary hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h2 className="font-semibold text-card-foreground">{contract.name}</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">{contract.customer_name}</p>
-                </div>
-                <span
-                  className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${statusClasses[contract.status]}`}
-                >
-                  {statusLabels[contract.status]}
-                </span>
-              </div>
-
-              <div className="mt-5 space-y-3 text-sm">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Factory className="h-4 w-4 shrink-0" aria-hidden="true" />
-                  <span className="truncate">{contract.wind_farm_name}</span>
-                </div>
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <CalendarDays className="h-4 w-4 shrink-0" aria-hidden="true" />
-                  <span>
-                    {contract.start_date} to {contract.end_date}
-                  </span>
-                </div>
-              </div>
-
-              <div className="mt-5 flex items-center justify-between border-t border-border pt-4 text-sm">
-                <span className="text-muted-foreground">
-                  Target availability{" "}
-                  <span className="font-semibold text-foreground">{contract.target_availability}%</span>
-                </span>
-                <ArrowUpRight
-                  className="h-4 w-4 text-muted-foreground transition group-hover:text-primary"
-                  aria-hidden="true"
-                />
-              </div>
-            </Link>
-          ))}
-        </div>
-      )}
-    </div>
+    </section>
   );
 }
 
-function PageMessage({ message }: { message: string }) {
-  return <div className="rounded-lg border border-border bg-card p-6 text-sm text-muted-foreground">{message}</div>;
+function HomeHeader() {
+  return (
+    <div className="rounded-lg border border-border bg-card p-6">
+      <p className="text-sm font-semibold text-primary">Synthetic operations portfolio</p>
+      <h1 className="mt-1.5 text-xl font-semibold text-foreground">
+        Wind farm contracts & availability configurations
+      </h1>
+      <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+        Browse active and expired service agreements, inspect fleet sizes, and create or manage
+        versioned availability configurations.
+      </p>
+    </div>
+  );
 }
