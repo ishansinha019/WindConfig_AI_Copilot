@@ -1,68 +1,326 @@
-import { useQuery } from "@tanstack/react-query";
-import { Link, useParams } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AlertCircle } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getAvailabilityConfiguration, getContract } from "@/lib/api";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  availabilitySnapshotDraftSchema,
+  type AvailabilitySnapshotFormValues,
+  createEmptySnapshot,
+  isStepComplete,
+  normalizeSnapshot,
+} from "@/features/av-config/schema";
+import { BasicDetailsStep } from "@/features/av-config/steps/BasicDetailsStep";
+import { WizardLayout } from "@/features/av-config/WizardLayout";
+import {
+  ApiError,
+  createAvailabilityConfiguration,
+  getAvailabilityConfiguration,
+  getCatalog,
+  getContract,
+  saveAvailabilityDraft,
+} from "@/lib/api";
+
+function parseStep(raw: string | null): number {
+  const num = Number(raw);
+  if (Number.isInteger(num) && num >= 1 && num <= 4) {
+    return num;
+  }
+  return 1;
+}
 
 export function AvConfigWizardPage() {
-  const { contractId, configId } = useParams<{ contractId: string; configId?: string }>();
+  const { contractId = "", configId } = useParams<{
+    contractId: string;
+    configId?: string;
+  }>();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
   const isNew = !configId;
+  const currentStep = parseStep(searchParams.get("step"));
+  const [loadedVersion, setLoadedVersion] = useState<number | null>(null);
+  const [initializedKey, setInitializedKey] = useState<string | null>(null);
 
   const contractQuery = useQuery({
     queryKey: ["contract", contractId],
-    queryFn: () => getContract(contractId ?? ""),
+    queryFn: () => getContract(contractId),
     enabled: Boolean(contractId),
+  });
+
+  const catalogQuery = useQuery({
+    queryKey: ["catalog"],
+    queryFn: getCatalog,
+    staleTime: 10 * 60 * 1000,
   });
 
   const configQuery = useQuery({
     queryKey: ["av-config", contractId, configId],
-    queryFn: () => getAvailabilityConfiguration(contractId ?? "", configId ?? ""),
+    queryFn: () => getAvailabilityConfiguration(contractId, configId ?? ""),
     enabled: Boolean(contractId && configId),
   });
+
+  const form = useForm<AvailabilitySnapshotFormValues>({
+    resolver: zodResolver(availabilitySnapshotDraftSchema),
+    defaultValues: createEmptySnapshot(),
+    mode: "onChange",
+  });
+
+  // Hydrate form in New mode once contract loads
+  useEffect(() => {
+    if (!isNew || !contractQuery.data) return;
+    const key = `new:${contractId}`;
+    if (initializedKey === key) return;
+
+    form.reset(createEmptySnapshot(contractQuery.data.target_availability));
+    setLoadedVersion(null);
+    setInitializedKey(key);
+  }, [isNew, contractId, contractQuery.data, initializedKey, form]);
+
+  // Hydrate form in Edit mode once config loads
+  useEffect(() => {
+    if (isNew || !configQuery.data) return;
+    const cfg = configQuery.data;
+    const key = `edit:${cfg.id}:v${cfg.latest_version.version_number}`;
+    if (initializedKey === key) return;
+
+    const normalized = normalizeSnapshot(
+      cfg.latest_version.snapshot_data,
+      cfg.name,
+      contractQuery.data?.target_availability,
+    );
+    form.reset(normalized);
+    setLoadedVersion(cfg.latest_version.version_number);
+    setInitializedKey(key);
+  }, [isNew, configQuery.data, contractQuery.data, initializedKey, form]);
+
+  // Browser-level unsaved-changes guard (D15)
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (form.formState.isDirty) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [form.formState.isDirty]);
+
+  const handleStepChange = (step: number) => {
+    const clamped = Math.max(1, Math.min(4, step));
+    setSearchParams({ step: String(clamped) }, { replace: true });
+  };
+
+  const handleBackToContracts = () => {
+    if (
+      form.formState.isDirty &&
+      !window.confirm("You have unsaved changes. Leave without saving?")
+    ) {
+      return;
+    }
+    navigate("/");
+  };
+
+  const saveMutation = useMutation({
+    mutationFn: async (values: AvailabilitySnapshotFormValues) => {
+      if (isNew) {
+        const created = await createAvailabilityConfiguration(contractId, values);
+        return { mode: "create" as const, created };
+      }
+      const savedVersion = await saveAvailabilityDraft(
+        contractId,
+        configId ?? "",
+        loadedVersion,
+        values,
+      );
+      return { mode: "update" as const, savedVersion };
+    },
+    onSuccess: (result, values) => {
+      form.reset(values);
+      void queryClient.invalidateQueries({ queryKey: ["contracts"] });
+      void queryClient.invalidateQueries({ queryKey: ["contract", contractId] });
+
+      if (result.mode === "create") {
+        const { created } = result;
+        setLoadedVersion(created.latest_version.version_number);
+        setInitializedKey(`edit:${created.id}:v${created.latest_version.version_number}`);
+        toast.success(`Saved draft v${created.latest_version.version_number}`);
+        navigate(
+          `/contracts/${contractId}/configurations/${created.id}?step=${currentStep}`,
+          { replace: true },
+        );
+      } else {
+        const { savedVersion } = result;
+        setLoadedVersion(savedVersion.version_number);
+        setInitializedKey(`edit:${configId}:v${savedVersion.version_number}`);
+        void queryClient.invalidateQueries({ queryKey: ["av-config", contractId, configId] });
+        toast.success(`Saved draft v${savedVersion.version_number}`);
+      }
+    },
+    onError: (err: Error) => {
+      if (err instanceof ApiError && err.status === 409) {
+        toast.error("Someone else saved a newer version.", {
+          description: err.message,
+          action: {
+            label: "Reload latest",
+            onClick: () => {
+              setInitializedKey(null);
+              void configQuery.refetch();
+            },
+          },
+        });
+        return;
+      }
+      toast.error(err.message);
+    },
+  });
+
+  const handleSaveDraft = () => {
+    void form.handleSubmit(
+      (values) => saveMutation.mutate(values),
+      (errors) => {
+        if (errors.basic_details) {
+          handleStepChange(1);
+        }
+        toast.error("Please fix the highlighted fields before saving.");
+      },
+    )();
+  };
+
+  if (contractQuery.isLoading || (!isNew && configQuery.isLoading)) {
+    return (
+      <section className="space-y-6">
+        <Skeleton className="h-8 w-64" />
+        <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
+          <Skeleton className="h-64 w-full rounded-lg" />
+          <Skeleton className="h-96 w-full rounded-lg" />
+        </div>
+      </section>
+    );
+  }
+
+  if (contractQuery.isError || !contractQuery.data || (!isNew && configQuery.isError)) {
+    return (
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>Could not load wizard</AlertTitle>
+        <AlertDescription>
+          Failed to load the contract or availability configuration. Return to the home page and try
+          again.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  const contract = contractQuery.data;
+  const watchedValues = form.watch();
+  const completedSteps: Record<number, boolean> = {
+    1: isStepComplete(1, watchedValues),
+    2: isStepComplete(2, watchedValues),
+    3: isStepComplete(3, watchedValues),
+    4: isStepComplete(4, watchedValues),
+  };
 
   return (
     <section className="space-y-6">
       <div className="space-y-2">
-        <Link to="/" className="text-sm font-medium text-primary hover:underline">
+        <button
+          type="button"
+          onClick={handleBackToContracts}
+          className="text-sm font-medium text-primary hover:underline"
+        >
           ← All contracts
-        </Link>
+        </button>
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-semibold text-foreground">
-            {isNew
-              ? "New Availability Configuration"
-              : configQuery.data?.name ?? "Availability Configuration"}
+            {watchedValues.basic_details.name.trim() ||
+              (isNew ? "New Availability Configuration" : configQuery.data?.name)}
           </h1>
-          {configQuery.data && (
+          {!isNew && configQuery.data && (
             <Badge variant="outline">
-              v{configQuery.data.latest_version_number} &bull; {configQuery.data.status}
+              v{loadedVersion ?? configQuery.data.latest_version_number} &bull;{" "}
+              {configQuery.data.status}
             </Badge>
           )}
         </div>
-        {contractQuery.data && (
-          <p className="text-sm text-muted-foreground">
-            Contract: {contractQuery.data.name} ({contractQuery.data.wind_farm_name})
-          </p>
-        )}
+        <p className="text-sm text-muted-foreground">
+          Contract: {contract.name} ({contract.wind_farm_name})
+        </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">4-Step Configuration Wizard (Milestone A5–A6)</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm text-muted-foreground">
-          <p>
-            {isNew
-              ? "This route opens an empty wizard for creating a new availability configuration. Nothing is persisted until the first Save draft."
-              : `Loaded configuration GUID: ${configId}.`}
-          </p>
-          {configQuery.data && (
-            <pre className="max-h-80 overflow-auto rounded-md bg-muted p-4 text-xs text-foreground">
-              {JSON.stringify(configQuery.data.latest_version.snapshot_data, null, 2)}
-            </pre>
-          )}
-        </CardContent>
-      </Card>
+      <WizardLayout
+        currentStep={currentStep}
+        completedSteps={completedSteps}
+        isDirty={form.formState.isDirty}
+        isSaving={saveMutation.isPending}
+        onStepChange={handleStepChange}
+        onSaveDraft={handleSaveDraft}
+      >
+        {currentStep === 1 && (
+          <BasicDetailsStep
+            form={form}
+            contract={contract}
+            catalog={catalogQuery.data}
+          />
+        )}
+        {currentStep === 2 && (
+          <StepPlaceholder
+            stepNumber={2}
+            title="Turbines"
+            description="Turbine fleet selection table (Milestone A6). Currently selected turbines are preserved on save."
+            summary={`Selected turbines: ${watchedValues.turbine_ids.length}`}
+          />
+        )}
+        {currentStep === 3 && (
+          <StepPlaceholder
+            stepNumber={3}
+            title="Formula & alarm categories"
+            description="Formula selector and collapsible alarm tree (Milestone A6). Currently selected formula and alarm assignments are preserved on save."
+            summary={`Formula: ${watchedValues.formula_code ?? "None"} · Alarms assigned: ${watchedValues.alarm_assignments.length}`}
+          />
+        )}
+        {currentStep === 4 && (
+          <StepPlaceholder
+            stepNumber={4}
+            title="Details & Review"
+            description="Park availability, wind variants, and Review & Publish panel (Milestone A7). Existing detail values are preserved on save."
+            summary={`Park availability: ${watchedValues.details.park_availability_pct ?? "Unset"}%`}
+          />
+        )}
+      </WizardLayout>
     </section>
+  );
+}
+
+function StepPlaceholder({
+  stepNumber,
+  title,
+  description,
+  summary,
+}: {
+  stepNumber: number;
+  title: string;
+  description: string;
+  summary: string;
+}) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-lg font-semibold text-foreground">
+          {stepNumber}. {title}
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+      </div>
+      <div className="rounded-md border border-dashed border-border bg-muted/30 p-4 text-xs text-muted-foreground">
+        {summary}
+      </div>
+    </div>
   );
 }

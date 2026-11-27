@@ -111,6 +111,37 @@ export type AvReadinessResponse = {
   warnings: ReadinessIssue[];
 };
 
+export type AlarmAssignment = {
+  alarm_id: string;
+  turbine_ids: string[];
+};
+
+export type AvailabilitySnapshotDraft = {
+  schema_version: 2;
+  basic_details: {
+    name: string;
+    calculation_type: string | null;
+    start_date: string | null;
+    end_date: string | null;
+  };
+  turbine_ids: string[];
+  formula_code: string | null;
+  alarm_assignments: AlarmAssignment[];
+  details: {
+    park_availability_pct: number | null;
+    low_wind_variant: string | null;
+    high_wind_variant: string | null;
+  };
+};
+
+export class ApiError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
 export type CatalogResponse = {
   calculation_types: Array<{ code: string; name: string; description: string }>;
   formulas: Array<{ code: string; calculation_type: string; name: string; expression: string }>;
@@ -223,6 +254,60 @@ export async function deleteAvailabilityConfiguration(
   );
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => ({}))) as { detail?: string };
-    throw new Error(errorBody.detail ?? "Failed to delete availability configuration");
+    throw new ApiError(response.status, errorBody.detail ?? "Failed to delete availability configuration");
   }
+}
+
+export async function createAvailabilityConfiguration(
+  contractId: string,
+  snapshotData: AvailabilitySnapshotDraft,
+): Promise<AvailabilityConfigDetail> {
+  const response = await fetch(
+    `${apiBaseUrl}/api/v1/contracts/${contractId}/availability-configurations`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-User-Name": getActingUser(),
+      },
+      body: JSON.stringify({ snapshot_data: snapshotData }),
+    },
+  );
+  if (!response.ok) {
+    const errorBody = (await response.json().catch(() => ({}))) as { detail?: string };
+    throw new ApiError(
+      response.status,
+      typeof errorBody.detail === "string"
+        ? errorBody.detail
+        : "Failed to create availability configuration",
+    );
+  }
+  return response.json() as Promise<AvailabilityConfigDetail>;
+}
+
+export async function saveAvailabilityDraft(
+  contractId: string,
+  configId: string,
+  baseVersion: number | null,
+  snapshotData: AvailabilitySnapshotDraft,
+): Promise<AvConfigVersion> {
+  const response = await fetch(
+    `${apiBaseUrl}/api/v1/contracts/${contractId}/availability-configurations/${configId}/drafts`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-User-Name": getActingUser(),
+      },
+      body: JSON.stringify({ base_version: baseVersion, snapshot_data: snapshotData }),
+    },
+  );
+  if (!response.ok) {
+    const errorBody = (await response.json().catch(() => ({}))) as { detail?: string };
+    throw new ApiError(
+      response.status,
+      typeof errorBody.detail === "string" ? errorBody.detail : "Failed to save draft",
+    );
+  }
+  return response.json() as Promise<AvConfigVersion>;
 }
