@@ -4,6 +4,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.contract import ContractStatus
+from app.schemas.availability_configuration import AvailabilityConfigSummary
 
 
 class ContractSummary(BaseModel):
@@ -19,6 +20,9 @@ class ContractSummary(BaseModel):
     start_date: date
     end_date: date
     target_availability: float = Field(ge=0, le=100)
+    is_live: bool = False
+    turbine_count: int = 0
+    availability_configurations: list[AvailabilityConfigSummary] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 
