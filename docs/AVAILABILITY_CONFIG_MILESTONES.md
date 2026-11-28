@@ -492,9 +492,9 @@ same contract has multiple published configurations rather than unpublishing one
 - **Personal laptop verified when:** full flow home page → "+" → four steps → save → publish works against PostgreSQL; overlapping publish is blocked and the mini card shows the updated status and timestamp.
 
 ### A8 — Tests, docs, cleanup
-- [ ] Playwright e2e: happy path create→publish; blocked publish shows errors.
-- [ ] Update `README.md` demo flow + endpoint list, `docs/ARCHITECTURE.md` data ownership, `docs/SESSION_NOTES.md`.
-- [ ] Remove dead code from old contract-scoped configuration flow.
+- [x] Playwright e2e: happy path create→publish; blocked publish shows errors.
+- [x] Update `README.md` demo flow + endpoint list, `docs/ARCHITECTURE.md` data ownership, `docs/SESSION_NOTES.md`.
+- [x] Remove dead code from old contract-scoped configuration flow.
 - **Work laptop done when:** pytest, frontend lint/build, and any non-browser test selectors pass.
 - **Personal laptop verified when:** Playwright end-to-end tests pass against the Docker Compose stack.
 
@@ -597,4 +597,5 @@ personal-laptop verification.
 | 2026-11-28 | A4 | Built HomePage 3-column `ContractCard` grid, `AvConfigCarousel` (Embla dots/`n / N` counter, empty state), `AvConfigMiniCard` (⋮ Edit/Delete + published tooltip), `DeleteAvConfigDialog`, `ActingUserPicker`, and `AvConfigWizardPage` placeholder route; updated `ContractDetailPage` and `api.ts` for A3 endpoints. | N/A (authored on personal laptop) | `npm run lint` and `npm run build` passed inside `windconfig-frontend`; `http://localhost:5173/` returned HTTP 200. (Browser visual check pending user inspection.) | `e683e51` |
 | 2026-11-28 | A5 | Built `AvConfigWizardPage` (new & edit modes), `WizardLayout` (left step nav, `?step=`, sticky footer, unsaved-changes guard), `BasicDetailsStep` (`DatePicker`, `Select`, outside-contract-dates hint), Zod snapshot v2 schema, and OCC 409 conflict toast with reload action. | N/A (authored on personal laptop) | `npm run lint` and `npm run build` passed inside `windconfig-frontend`. (Browser end-to-end check pending user inspection.) | `df9f847` |
 | 2026-11-28 | A6 | Built Step 2 `TurbinesStep` (contract-scoped grouped turbine table, fleet/group select-all, D4 assignment pruning), Step 3 `FormulaAlarmsStep` (calc-type-filtered formula Select + reset on type change), and `AlarmTree` (collapsible tri-state categories, required badges, per-alarm turbine Command multi-select). | N/A (authored on personal laptop) | `npm run lint` and `npm run build` passed inside `windconfig-frontend`. (Browser round-trip check pending user inspection.) | `9a82fae` |
-| 2026-11-28 | A7 | Built Step 4 `DetailsStep` (park availability + low/high wind variants), `ReviewPublishPanel` (4-step summary, clickable step-jump readiness errors/warnings, Publish action), and `VersionHistoryDialog` (version list + structural diff viewer). | N/A (authored on personal laptop) | `npm run lint` and `npm run build` passed inside `windconfig-frontend`. (Browser end-to-end publish/overlap check pending user inspection.) | (pending) |
+| 2026-11-28 | A7 | Built Step 4 `DetailsStep` (park availability + low/high wind variants), `ReviewPublishPanel` (4-step summary, clickable step-jump readiness errors/warnings, Publish action), and `VersionHistoryDialog` (version list + structural diff viewer). | N/A (authored on personal laptop) | `npm run lint` and `npm run build` passed inside `windconfig-frontend`. (Browser end-to-end publish/overlap check pending user inspection.) | `1fca781` |
+| 2026-11-28 | A8 | Installed `@playwright/test`, added `playwright.config.ts` and `e2e/av-config.spec.ts` (blocked-publish error jump + 4-step create→publish happy path), updated `README.md`, `docs/ARCHITECTURE.md`, and `docs/SESSION_NOTES.md`. | N/A (authored on personal laptop) | 15 pytest tests passed, frontend lint/build passed, and 2 Playwright E2E tests passed against the Docker Compose stack. | (pending) |

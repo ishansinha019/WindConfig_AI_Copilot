@@ -8,9 +8,8 @@ The project uses synthetic domain-inspired data only. It does not use proprietar
 
 ## Milestone Status
 
-- Milestone 1: Project setup in progress.
-- Milestone 2: Backend foundation next.
-- Milestone 3+: Database, frontend workflow, draft/publish, local AI, testing, and interview polish.
+- Milestones 1–6 & Availability Configuration Workflow (A1–A8): Complete (PostgreSQL domain model, GUID-scoped AV config versioning with OCC, 4-step shadcn/ui wizard, readiness/overlap validation, Playwright E2E).
+- Milestone 7+: Local AI and RAG assistant (Ollama + Chroma) next.
 
 ## Tech Stack
 
@@ -128,9 +127,21 @@ database to see the expanded demo fleets without deleting the original data.
 Available backend endpoints:
 
 ```txt
-GET /api/v1/health
-GET /api/v1/contracts
-GET /api/v1/contracts/{contract_id}
+GET    /api/v1/health
+GET    /api/v1/catalog
+GET    /api/v1/users
+GET    /api/v1/contracts
+GET    /api/v1/contracts/{contract_id}
+GET    /api/v1/contracts/{contract_id}/availability-configurations
+POST   /api/v1/contracts/{contract_id}/availability-configurations
+GET    /api/v1/contracts/{contract_id}/availability-configurations/{acid}
+POST   /api/v1/contracts/{contract_id}/availability-configurations/{acid}/drafts
+GET    /api/v1/contracts/{contract_id}/availability-configurations/{acid}/versions
+GET    /api/v1/contracts/{contract_id}/availability-configurations/{acid}/versions/{vid}
+GET    /api/v1/contracts/{contract_id}/availability-configurations/{acid}/versions/{vid}/readiness
+POST   /api/v1/contracts/{contract_id}/availability-configurations/{acid}/versions/{vid}/publish
+GET    /api/v1/contracts/{contract_id}/availability-configurations/{acid}/diff
+DELETE /api/v1/contracts/{contract_id}/availability-configurations/{acid}
 ```
 
 ## Environment
@@ -151,16 +162,17 @@ postgresql+psycopg://windconfig:windconfig@postgres:5432/windconfig
 
 ## Current Demo Flow
 
-The current foundation provides:
-- A contract home page and separate detail page, with a backend health check.
-- PostgreSQL-backed contracts with separate configuration histories and
-  contract-specific turbines and nested alarms.
-- Automatic migration and synthetic demo-data seeding in Docker Compose.
-- Backend tests that run without Docker: `uv run --extra dev pytest` from `backend`.
-
-The existing draft/publish API still operates on each contract's default
-configuration. Editing multiple configurations, the carousel, the wizard,
-and local AI are later milestones.
+1. Open `http://localhost:5173` and select an acting user in the header picker (`X-User-Name`).
+2. Browse the six synthetic contract cards, live/expired indicators, and availability configuration carousels.
+3. Click **+** (or **Create first configuration**) to launch the 4-step Availability Configuration Wizard:
+   - **Step 1 (Basic details):** Set name, calculation type (`TBA`, `YBA`, `RBA`), and effective date range.
+   - **Step 2 (Turbines):** Select contract-scoped turbines by group or fleet.
+   - **Step 3 (Formula & alarms):** Pick a matching formula and assign alarms to turbines via the collapsible alarm tree.
+   - **Step 4 (Details):** Set park availability (%) and low/high wind variants.
+4. Click **Save draft** to persist an immutable versioned snapshot (OCC `base_version`), inspect **Version history & diff**, review deterministic readiness errors, and click **Publish**.
+5. Run automated tests:
+   - Backend: `uv run --extra dev pytest` (or `docker exec windconfig-backend pytest`)
+   - Frontend E2E: `npx playwright test` from `frontend/` against the running Docker Compose stack.
 
 ## Documentation
 

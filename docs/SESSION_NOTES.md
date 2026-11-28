@@ -2,7 +2,16 @@
 
 ## Current Status
 
-The project has a frontend shell and a database-backed backend foundation. Docker Compose now applies the contracts migration, seeds two synthetic contracts, and starts the API and frontend locally.
+Milestones A1–A8 of the Availability Configuration workflow are complete. The full-stack app runs via Docker Compose with six synthetic contracts, GUID-scoped availability configurations, OCC draft versioning, a 4-step shadcn/ui wizard, deterministic readiness/overlap validation, version history diffing, and Playwright end-to-end tests.
+
+## Availability Configuration Workflow (A1–A8) Completed
+
+- **A1:** Initialized shadcn/ui for Tailwind v3, React Router (`/` and `/contracts/:contractId`), and form/date dependencies.
+- **A2:** Added `AvailabilityConfiguration` (stable GUID) and nested `Alarm` models (`202611260001`), contract card metadata (`order_reason`, `sales_document_number`, `customer_names`), and six synthetic contracts.
+- **A3:** Added `/api/v1/catalog` and `/api/v1/users`, typed snapshot v2 (`AvailabilitySnapshotDraft`), GUID-based AV config APIs with `X-User-Name` attribution, single-query `GET /contracts` summaries, step-hinted readiness validation, and overlap blocking; removed legacy contract-scoped config routes.
+- **A4:** Built `HomePage` 3-column `ContractCard` grid, `AvConfigCarousel` (dots / `n / N` counter / empty state), `AvConfigMiniCard` (Edit / Delete), `DeleteAvConfigDialog`, and `ActingUserPicker`.
+- **A5–A7:** Built `AvConfigWizardPage` (new & edit modes, `?step=` routing, unsaved-changes guard, OCC 409 toast), Steps 1–4 (`BasicDetailsStep`, `TurbinesStep`, `FormulaAlarmsStep` + collapsible `AlarmTree`, `DetailsStep`), `ReviewPublishPanel` (clickable step-jump readiness errors), and `VersionHistoryDialog` (structural diff).
+- **A8:** Added Playwright E2E tests (`frontend/e2e/av-config.spec.ts`), updated documentation, and verified full-stack tests.
 
 ## Backend and Database Foundation Completed
 

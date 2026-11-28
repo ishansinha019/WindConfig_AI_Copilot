@@ -63,15 +63,11 @@ Runtime:
 ## Data Ownership
 
 PostgreSQL owns:
-- Contracts.
-- Wind farms.
-- Turbines.
-- Turbine groups.
-- Production periods.
-- Alarm categories.
-- Availability settings.
-- Draft snapshots.
-- Publish state.
+- Contracts (including order reason, sales document number, customer list).
+- Wind farms, turbine groups, and contract-scoped turbines.
+- Production periods, alarm categories, and nested alarms.
+- Availability configurations (`availability_configurations` headers by GUID, `created_by` / `updated_by`).
+- Versioned configuration snapshots (`configuration_versions` JSONB v2 payloads, checksums, and publish state).
 
 Chroma owns:
 - Embedded knowledge base chunks.
@@ -117,17 +113,18 @@ The backend should enforce rules such as:
 
 ## API Shape
 
-Initial API groups:
+API groups:
 - `/api/v1/health`
-- `/api/v1/contracts`
-- `/api/v1/contracts/{contract_id}`
-- `/api/v1/contracts/{contract_id}/configuration`
-- `/api/v1/contracts/{contract_id}/drafts`
-- `/api/v1/contracts/{contract_id}/publish`
-- `/api/v1/contracts/{contract_id}/ai/summary`
-- `/api/v1/contracts/{contract_id}/ai/readiness`
-- `/api/v1/contracts/{contract_id}/ai/compare-drafts`
-- `/api/v1/ai/chat`
+- `/api/v1/catalog` and `/api/v1/users`
+- `/api/v1/contracts` and `/api/v1/contracts/{contract_id}`
+- `/api/v1/contracts/{contract_id}/availability-configurations` (create, list, get, delete by GUID)
+- `/api/v1/contracts/{contract_id}/availability-configurations/{acid}/drafts` (OCC save)
+- `/api/v1/contracts/{contract_id}/availability-configurations/{acid}/versions` (history, readiness, publish)
+- `/api/v1/contracts/{contract_id}/availability-configurations/{acid}/diff`
+- `/api/v1/contracts/{contract_id}/ai/summary` (Milestone 7)
+- `/api/v1/contracts/{contract_id}/ai/readiness` (Milestone 7)
+- `/api/v1/contracts/{contract_id}/ai/compare-drafts` (Milestone 7)
+- `/api/v1/ai/chat` (Milestone 7)
 
 Exact schemas will be finalized when backend models are implemented.
 
